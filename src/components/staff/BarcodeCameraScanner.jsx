@@ -1,27 +1,28 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
-const BARCODE_FORMATS = [
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.CODE_93,
-  Html5QrcodeSupportedFormats.ITF,
-  Html5QrcodeSupportedFormats.QR_CODE,
+const F = Html5QrcodeSupportedFormats;
+
+const BARCODE_TYPES = [
+  {
+    id: 'all',
+    label: 'All barcodes',
+    formats: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.CODE_93, F.ITF, F.QR_CODE],
+  },
+  { id: 'ean', label: 'EAN-13', formats: [F.EAN_13, F.EAN_8] },
+  { id: 'code128', label: 'Code 128', formats: [F.CODE_128, F.CODE_39] },
+  { id: 'upc', label: 'UPC', formats: [F.UPC_A, F.UPC_E] },
+  { id: 'qr', label: 'QR code', formats: [F.QR_CODE] },
 ];
 
 const CAMERA_KEY = 'kisan-scan-camera';
+const TYPE_KEY = 'kisan-scan-type';
 
 async function stopScanner(scanner) {
   if (!scanner) return;
   try {
     const state = scanner.getState?.();
-    if (state === 2 || state === 3) {
-      await scanner.stop();
-    }
+    if (state === 2 || state === 3) await scanner.stop();
   } catch {
     /* ignore */
   }
@@ -35,20 +36,19 @@ async function stopScanner(scanner) {
 function explainError(err) {
   const msg = String(err?.message || err || '');
   const name = String(err?.name || '');
-
   if (!window.isSecureContext) {
-    return 'Camera needs HTTPS or localhost. Open https://localhost:5173 (accept the certificate warning).';
+    return 'Camera needs HTTPS. Open the site on your phone using the https link.';
   }
   if (name === 'NotAllowedError' || /permission|denied|notallowed/i.test(msg)) {
-    return 'Camera permission denied. Tap the lock icon in the address bar → allow Camera → Retry.';
+    return 'Camera blocked. Tap the lock icon → Allow Camera → Retry.';
   }
   if (name === 'NotFoundError' || /requested device not found|no camera|notfound/i.test(msg)) {
-    return 'No camera found on this device. Use a phone, or plug in a webcam.';
+    return 'No camera found. Use a phone, or tap Scan photo.';
   }
   if (name === 'NotReadableError' || /could not start video|in use|notreadable/i.test(msg)) {
-    return 'Camera is busy (used by another app). Close Zoom/Teams/other camera apps and retry.';
+    return 'Camera is busy. Close other camera apps and retry.';
   }
-  return msg ? `Camera error: ${msg}` : 'Camera unavailable. Use manual entry or Retry.';
+  return msg ? `Camera error: ${msg}` : 'Camera unavailable. Try Scan photo or type the barcode.';
 }
 
 function rankCameras(cameras) {
@@ -58,9 +58,14 @@ function rankCameras(cameras) {
   });
 }
 
+function formatsFor(typeId) {
+  return BARCODE_TYPES.find((t) => t.id === typeId)?.formats || BARCODE_TYPES[0].formats;
+}
+
 export default function BarcodeCameraScanner({ onDetected, active = true }) {
   const reactId = useId().replace(/:/g, '');
   const elementId = `barcode-reader-${reactId}`;
+  const fileRef = useRef(null);
   const scannerRef = useRef(null);
   const onDetectedRef = useRef(onDetected);
   const lockRef = useRef(false);
@@ -68,14 +73,14 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
   const startingRef = useRef(false);
 
   const [status, setStatus] = useState('idle');
-  const [message, setMessage] = useState('Tap Open Camera to scan');
+  const [message, setMessage] = useState('Tap Open Camera, or Scan photo');
   const [detail, setDetail] = useState('');
   const [cameras, setCameras] = useState([]);
   const [cameraId, setCameraId] = useState(() => localStorage.getItem(CAMERA_KEY) || '');
+  const [barcodeType, setBarcodeType] = useState(() => localStorage.getItem(TYPE_KEY) || 'ean');
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
-  const [zoom, setZoom] = useState(1);
-  const [zoomRange, setZoomRange] = useState(null);
+  const [zoom, setZoom] = useState(1.6);
 
   onDetectedRef.current = onDetected;
 
@@ -95,50 +100,34 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
       scannerRef.current = null;
       stopScanner(s);
       setStatus('idle');
-      setMessage('Tap Open Camera to scan');
+      setMessage('Tap Open Camera, or Scan photo');
       setTorchOn(false);
     }
   }, [active]);
+
+  const emitCode = useCallback((decodedText) => {
+    if (!mountedRef.current || lockRef.current) return;
+    const code = String(decodedText || '').trim();
+    if (!code) return;
+    lockRef.current = true;
+    onDetectedRef.current?.(code);
+  }, []);
 
   const readCapabilities = useCallback(() => {
     const scanner = scannerRef.current;
     if (!scanner) return;
     try {
       const caps = scanner.getRunningTrackCapabilities?.() || {};
-      const settings = scanner.getRunningTrackSettings?.() || {};
-      const torchOk = Boolean(caps.torch);
-      setTorchSupported(torchOk);
-      if (caps.zoom && typeof caps.zoom.min === 'number') {
-        setZoomRange({
-          min: caps.zoom.min,
-          max: caps.zoom.max,
-          step: caps.zoom.step || 0.1,
-        });
-        setZoom(Number(settings.zoom) || caps.zoom.min || 1);
-      } else {
-        setZoomRange(null);
-      }
+      setTorchSupported(Boolean(caps.torch));
     } catch {
       setTorchSupported(false);
-      setZoomRange(null);
-    }
-  }, []);
-
-  const applyConstraint = useCallback(async (partial) => {
-    const scanner = scannerRef.current;
-    if (!scanner) return;
-    try {
-      await scanner.applyVideoConstraints(partial);
-    } catch {
-      /* some browsers reject advanced constraints */
     }
   }, []);
 
   const startWithCamera = useCallback(
-    async (preferredId) => {
+    async (preferredId, typeId = barcodeType) => {
       if (!active || startingRef.current) return;
       startingRef.current = true;
-
       setStatus('starting');
       setMessage('Requesting camera permission…');
       setDetail('');
@@ -147,30 +136,25 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
 
       await stopScanner(scannerRef.current);
       scannerRef.current = null;
+      await new Promise((r) => setTimeout(r, 50));
 
-      await new Promise((r) => setTimeout(r, 60));
-      if (!document.getElementById(elementId)) {
+      if (!document.getElementById(elementId) || !navigator.mediaDevices?.getUserMedia) {
         startingRef.current = false;
         setStatus('error');
-        setMessage('Scanner area not ready. Tap Retry.');
-        return;
-      }
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        startingRef.current = false;
-        setStatus('error');
-        setMessage('This browser does not support camera access.');
+        setMessage('This browser cannot open the camera. Use Scan photo instead.');
         return;
       }
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
         stream.getTracks().forEach((t) => t.stop());
       } catch (err) {
         startingRef.current = false;
         setStatus('error');
         setMessage(explainError(err));
-        setDetail(`URL: ${window.location.origin}`);
         return;
       }
 
@@ -191,21 +175,19 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
       targets.push({ facingMode: 'environment' }, { facingMode: 'user' });
 
       const config = {
-        fps: 12,
+        fps: 16,
         qrbox: (w, h) => ({
-          width: Math.max(180, Math.min(300, Math.floor(w * 0.88))),
-          height: Math.max(70, Math.min(120, Math.floor(h * 0.3))),
+          width: Math.max(220, Math.min(Math.floor(w * 0.92), 360)),
+          height: Math.max(90, Math.min(Math.floor(h * 0.34), 150)),
         }),
-        rememberLastUsedCamera: true,
         aspectRatio: 3 / 4,
-      };
-
-      const onSuccess = (decodedText) => {
-        if (!mountedRef.current || lockRef.current) return;
-        const code = String(decodedText || '').trim();
-        if (!code) return;
-        lockRef.current = true;
-        onDetectedRef.current?.(code);
+        disableFlip: false,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        videoConstraints: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       };
 
       let lastError = null;
@@ -220,11 +202,11 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
 
         try {
           const scanner = new Html5Qrcode(elementId, {
-            formatsToSupport: BARCODE_FORMATS,
+            formatsToSupport: formatsFor(typeId),
             verbose: false,
           });
           scannerRef.current = scanner;
-          await scanner.start(target, config, onSuccess, () => {});
+          await scanner.start(target, config, emitCode, () => {});
           if (!mountedRef.current) {
             await stopScanner(scanner);
             startingRef.current = false;
@@ -236,7 +218,7 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
             localStorage.setItem(CAMERA_KEY, usedId);
           }
           setStatus('ready');
-          setMessage('Point camera at product barcode');
+          setMessage('Hold barcode inside the box. Use zoom if it is small.');
           setDetail('');
           readCapabilities();
           startingRef.current = false;
@@ -250,9 +232,20 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
       if (!mountedRef.current) return;
       setStatus('error');
       setMessage(explainError(lastError));
-      setDetail(`Tried ${targets.length} camera option(s).`);
+      setDetail('If live camera fails, tap Scan photo — that works on most phones.');
     },
-    [active, elementId, readCapabilities]
+    [active, barcodeType, elementId, emitCode, readCapabilities]
+  );
+
+  const changeType = useCallback(
+    async (nextType) => {
+      setBarcodeType(nextType);
+      localStorage.setItem(TYPE_KEY, nextType);
+      if (status === 'ready') {
+        await startWithCamera(cameraId, nextType);
+      }
+    },
+    [status, cameraId, startWithCamera]
   );
 
   const switchCamera = useCallback(
@@ -260,42 +253,83 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
       if (!nextId || nextId === cameraId) return;
       localStorage.setItem(CAMERA_KEY, nextId);
       setCameraId(nextId);
-      await startWithCamera(nextId);
+      await startWithCamera(nextId, barcodeType);
     },
-    [cameraId, startWithCamera]
+    [cameraId, barcodeType, startWithCamera]
   );
 
   const flipCamera = useCallback(async () => {
     if (cameras.length < 2) return;
-    const idx = cameras.findIndex((c) => c.id === cameraId);
-    const next = cameras[(idx + 1) % cameras.length];
-    if (next) await switchCamera(next.id);
+    const idx = Math.max(0, cameras.findIndex((c) => c.id === cameraId));
+    await switchCamera(cameras[(idx + 1) % cameras.length].id);
   }, [cameras, cameraId, switchCamera]);
 
   const toggleTorch = useCallback(async () => {
     const next = !torchOn;
     setTorchOn(next);
-    await applyConstraint({ advanced: [{ torch: next }] });
-  }, [torchOn, applyConstraint]);
+    try {
+      await scannerRef.current?.applyVideoConstraints({ advanced: [{ torch: next }] });
+    } catch {
+      setTorchOn(!next);
+    }
+  }, [torchOn]);
 
-  const changeZoom = useCallback(
-    async (value) => {
-      const next = Number(value);
-      setZoom(next);
-      await applyConstraint({ advanced: [{ zoom: next }] });
+  const scanPhoto = useCallback(
+    async (file) => {
+      if (!file) return;
+      setStatus('starting');
+      setMessage('Reading barcode from photo…');
+      setDetail('');
+      lockRef.current = false;
+      await stopScanner(scannerRef.current);
+      scannerRef.current = null;
+
+      try {
+        const scanner = new Html5Qrcode(elementId, {
+          formatsToSupport: formatsFor(barcodeType),
+          verbose: false,
+        });
+        scannerRef.current = scanner;
+        const result = await scanner.scanFileV2(file, true);
+        const text = result?.decodedText || result;
+        if (!text) throw new Error('No barcode found');
+        emitCode(text);
+      } catch (err) {
+        setStatus('error');
+        setMessage('No barcode found in that photo. Try a closer, brighter picture or another barcode type.');
+        setDetail(String(err?.message || ''));
+        await stopScanner(scannerRef.current);
+        scannerRef.current = null;
+      }
     },
-    [applyConstraint]
+    [barcodeType, elementId, emitCode]
   );
 
   if (!active) return null;
 
   return (
     <div className="barcode-scanner">
-      <div className={`scan-frame ${status === 'ready' ? 'is-live' : ''}`}>
+      <div className="barcode-type-row">
+        {BARCODE_TYPES.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={`camera-chip ${barcodeType === t.id ? 'is-on' : ''}`}
+            onClick={() => changeType(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        className={`scan-frame ${status === 'ready' ? 'is-live' : ''}`}
+        style={{ '--scan-zoom': zoom }}
+      >
         <div id={elementId} className="barcode-reader-el" />
         {status !== 'ready' && (
           <div className="scan-overlay-msg">
-            <div>{status === 'starting' ? 'Opening camera…' : message}</div>
+            <div>{status === 'starting' ? 'Opening…' : message}</div>
             {status === 'idle' && (
               <button type="button" className="btn" style={{ marginTop: '1rem' }} onClick={() => startWithCamera()}>
                 Open Camera
@@ -310,32 +344,32 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
             <div className="camera-controls-row">
               {cameras.length > 1 && (
                 <button type="button" className="camera-chip" onClick={flipCamera}>
-                  Flip camera
+                  Flip
                 </button>
               )}
               {torchSupported && (
-                <button
-                  type="button"
-                  className={`camera-chip ${torchOn ? 'is-on' : ''}`}
-                  onClick={toggleTorch}
-                >
+                <button type="button" className={`camera-chip ${torchOn ? 'is-on' : ''}`} onClick={toggleTorch}>
                   {torchOn ? 'Light on' : 'Light'}
                 </button>
               )}
+              <button type="button" className="camera-chip" onClick={() => setZoom((z) => Math.max(1, +(z - 0.3).toFixed(1)))}>
+                −
+              </button>
+              <button type="button" className="camera-chip" onClick={() => setZoom((z) => Math.min(4, +(z + 0.3).toFixed(1)))}>
+                +
+              </button>
             </div>
-            {zoomRange && (
-              <label className="camera-zoom">
-                Zoom
-                <input
-                  type="range"
-                  min={zoomRange.min}
-                  max={zoomRange.max}
-                  step={zoomRange.step}
-                  value={zoom}
-                  onChange={(e) => changeZoom(e.target.value)}
-                />
-              </label>
-            )}
+            <label className="camera-zoom">
+              Zoom {zoom.toFixed(1)}x
+              <input
+                type="range"
+                min="1"
+                max="4"
+                step="0.1"
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+              />
+            </label>
           </div>
         )}
       </div>
@@ -353,23 +387,40 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
         </label>
       )}
 
+      <div className="camera-controls-row" style={{ marginTop: '0.65rem' }}>
+        {(status === 'error' || status === 'idle') && (
+          <button type="button" className="btn" onClick={() => startWithCamera()}>
+            {status === 'error' ? 'Retry Camera' : 'Open Camera'}
+          </button>
+        )}
+        <button type="button" className="btn secondary" onClick={() => fileRef.current?.click()}>
+          Scan photo
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) scanPhoto(file);
+          }}
+        />
+      </div>
+
       <p className="scan-hint">
         {status === 'ready'
           ? message
           : status === 'starting'
-            ? 'Please allow camera access when prompted…'
+            ? 'Allow camera when asked…'
             : message}
       </p>
       {detail && (
         <p className="scan-hint" style={{ fontSize: '0.8rem' }}>
           {detail}
         </p>
-      )}
-
-      {(status === 'error' || status === 'idle') && (
-        <button type="button" className="btn block" onClick={() => startWithCamera()}>
-          {status === 'error' ? 'Retry Camera' : 'Open Camera'}
-        </button>
       )}
     </div>
   );

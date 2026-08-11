@@ -45,7 +45,10 @@ export default function ScanBarcode() {
       <h1 className="page-title" style={{ marginTop: '1rem' }}>
         Scan Barcode
       </h1>
-      <p className="page-sub">Use camera to scan product barcode</p>
+      <p className="page-sub">
+        Pick barcode type (try <strong>EAN-13</strong> for SWIL), hold the code in the box, then zoom in.
+        If live camera misses it, tap <strong>Scan photo</strong>.
+      </p>
 
       {error && <div className="alert error">{error}</div>}
 

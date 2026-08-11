@@ -514,6 +514,8 @@ textarea:focus {
   height: 100% !important;
   object-fit: cover !important;
   border-radius: 0 !important;
+  transform: scale(var(--scan-zoom, 1));
+  transform-origin: center center;
 }
 
 .barcode-reader-el img {
@@ -616,6 +618,13 @@ textarea:focus {
   gap: 0.3rem;
   margin: 0.35rem 0 0.2rem;
   font-size: 0.85rem;
+}
+
+.barcode-type-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0.55rem;
 }
 
 @keyframes scanline {
