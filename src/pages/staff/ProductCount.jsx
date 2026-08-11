@@ -32,6 +32,10 @@ export default function ProductCount() {
   }
 
   const { product, locationName } = productData;
+  const mrp = Number(product.mrp) || 0;
+  const salePrice = Number(product.salePrice) || mrp;
+  const discount = Number(product.discount ?? Math.max(0, mrp - salePrice));
+  const discountPct = Number(product.discountPct ?? (mrp > 0 ? (discount / mrp) * 100 : 0));
 
   async function save() {
     setBusy(true);
@@ -69,7 +73,18 @@ export default function ProductCount() {
           </div>
           <div>
             <div className="muted">MRP</div>
-            <strong>₹{Number(product.mrp).toFixed(0)}</strong>
+            <strong>₹{mrp.toFixed(2)}</strong>
+          </div>
+          <div>
+            <div className="muted">Sale Price</div>
+            <strong>₹{salePrice.toFixed(2)}</strong>
+          </div>
+          <div>
+            <div className="muted">Total Discount</div>
+            <strong>
+              ₹{discount.toFixed(2)}
+              {discountPct > 0 ? ` (${discountPct.toFixed(1)}%)` : ''}
+            </strong>
           </div>
           <div>
             <div className="muted">Location</div>

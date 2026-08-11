@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
 
-const emptyForm = { name: '', mobile: '', password: '', isActive: true };
+const emptyForm = { name: '', username: '', mobile: '', password: '', isActive: true };
 
 export default function StaffUsers() {
   const [rows, setRows] = useState([]);
@@ -33,7 +33,7 @@ export default function StaffUsers() {
 
   function startEdit(u) {
     setEditingId(u.id);
-    setForm({ name: u.name, mobile: u.mobile, password: '', isActive: u.isActive });
+    setForm({ name: u.name, username: u.username || '', mobile: u.mobile, password: '', isActive: u.isActive });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -48,7 +48,7 @@ export default function StaffUsers() {
     setError('');
     try {
       if (editingId) {
-        const payload = { name: form.name, mobile: form.mobile, isActive: form.isActive };
+        const payload = { name: form.name, username: form.username, mobile: form.mobile, isActive: form.isActive };
         if (form.password) payload.password = form.password;
         await api.patch(`/users/${editingId}`, payload);
       } else {
@@ -87,6 +87,15 @@ export default function StaffUsers() {
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             required
+          />
+        </label>
+        <label>
+          Username
+          <input
+            value={form.username}
+            onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+            placeholder="ashok"
+            required={!editingId}
           />
         </label>
         <label>
@@ -148,6 +157,7 @@ export default function StaffUsers() {
           <thead>
             <tr>
               <th>Name</th>
+              <th>Username</th>
               <th>Mobile</th>
               <th>Active</th>
               <th>Actions</th>
@@ -157,6 +167,7 @@ export default function StaffUsers() {
             {rows.map((u) => (
               <tr key={u.id}>
                 <td>{u.name}</td>
+                <td>{u.username || '—'}</td>
                 <td>{u.mobile}</td>
                 <td>{u.isActive ? 'Yes' : 'No'}</td>
                 <td>
@@ -173,7 +184,7 @@ export default function StaffUsers() {
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={4} className="empty">
+                <td colSpan={5} className="empty">
                   No staff
                 </td>
               </tr>

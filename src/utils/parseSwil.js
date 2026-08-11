@@ -53,7 +53,19 @@ export function parseSwilRows(rows) {
         'item',
       ]) ?? ''
     ).trim();
-    const mrpRaw = pickField(row, ['mrp', 'price', 'sale rate', 'salerate']);
+    const mrpRaw = pickField(row, ['mrp', 'max retail price', 'printed mrp', 'm.r.p']);
+    const saleRaw = pickField(row, [
+      'sale rate',
+      'salerate',
+      'sale price',
+      'saleprice',
+      'selling price',
+      'rate',
+      'rsp',
+      'sprice',
+      'net rate',
+    ]);
+    const discountRaw = pickField(row, ['discount', 'disc', 'discount amt', 'disc amt']);
     const unit =
       String(pickField(row, ['stockunit', 'stock unit', 'unit', 'unit1', 'unit2', 'uom']) ?? 'PCS').trim() ||
       'PCS';
@@ -81,12 +93,18 @@ export function parseSwilRows(rows) {
       return;
     }
 
+    const mrp = toNumber(mrpRaw) || 0;
+    let salePrice = toNumber(saleRaw) || 0;
+    const discountAmt = toNumber(discountRaw) || 0;
+    if (!salePrice && mrp && discountAmt) salePrice = Math.max(0, mrp - discountAmt);
+    if (!salePrice) salePrice = mrp;
+
     const existing = byBarcode.get(barcode);
     if (existing) {
       existing.quantity += quantity;
       if (name) existing.name = name;
-      const mrp = toNumber(mrpRaw);
       if (mrp) existing.mrp = mrp;
+      if (salePrice) existing.salePrice = salePrice;
       if (unit) existing.unit = unit;
       return;
     }
@@ -95,7 +113,8 @@ export function parseSwilRows(rows) {
       barcode,
       name: name.slice(0, 500),
       quantity,
-      mrp: toNumber(mrpRaw) || 0,
+      mrp,
+      salePrice,
       unit: unit.slice(0, 40),
     });
   });

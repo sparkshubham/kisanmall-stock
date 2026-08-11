@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
 
-const emptyForm = { name: '', barcode: '', mrp: '', unit: 'PCS' };
+const emptyForm = { name: '', barcode: '', mrp: '', salePrice: '', unit: 'PCS' };
 
 export default function ImportedProducts() {
   const [rows, setRows] = useState([]);
@@ -38,7 +38,13 @@ export default function ImportedProducts() {
 
   function startEdit(p) {
     setEditingId(p.id);
-    setForm({ name: p.name, barcode: p.barcode, mrp: String(p.mrp ?? ''), unit: p.unit || 'PCS' });
+    setForm({
+      name: p.name,
+      barcode: p.barcode,
+      mrp: String(p.mrp ?? ''),
+      salePrice: String(p.salePrice ?? ''),
+      unit: p.unit || 'PCS',
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -51,6 +57,7 @@ export default function ImportedProducts() {
         name: form.name,
         barcode: form.barcode,
         mrp: Number(form.mrp) || 0,
+        salePrice: Number(form.salePrice) || Number(form.mrp) || 0,
         unit: form.unit || 'PCS',
       };
       if (editingId) {
@@ -111,6 +118,15 @@ export default function ImportedProducts() {
           />
         </label>
         <label>
+          Sale Price
+          <input
+            type="number"
+            step="0.01"
+            value={form.salePrice}
+            onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))}
+          />
+        </label>
+        <label>
           Unit
           <input value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} />
         </label>
@@ -146,6 +162,8 @@ export default function ImportedProducts() {
               <th>Product</th>
               <th>Barcode</th>
               <th>MRP</th>
+              <th>Sale</th>
+              <th>Discount</th>
               <th>Unit</th>
               <th>Actions</th>
             </tr>
@@ -156,6 +174,8 @@ export default function ImportedProducts() {
                 <td>{p.name}</td>
                 <td>{p.barcode}</td>
                 <td>₹{Number(p.mrp).toFixed(2)}</td>
+                <td>₹{Number(p.salePrice || p.mrp).toFixed(2)}</td>
+                <td>₹{Math.max(0, Number(p.mrp) - Number(p.salePrice || p.mrp)).toFixed(2)}</td>
                 <td>{p.unit}</td>
                 <td>
                   <div className="row-actions">
@@ -171,7 +191,7 @@ export default function ImportedProducts() {
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={5} className="empty">
+                <td colSpan={7} className="empty">
                   No products found
                 </td>
               </tr>

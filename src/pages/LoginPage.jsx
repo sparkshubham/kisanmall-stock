@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [mobile, setMobile] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -15,7 +15,7 @@ export default function LoginPage() {
     setError('');
     setBusy(true);
     try {
-      const user = await login(mobile.trim(), password);
+      const user = await login(username.trim(), password);
       navigate(user.role === 'ADMIN' ? '/admin' : '/staff');
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
@@ -32,12 +32,12 @@ export default function LoginPage() {
         {error && <div className="alert error">{error}</div>}
         <form onSubmit={onSubmit}>
           <label>
-            Mobile Number
+            Username
             <input
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              inputMode="numeric"
-              placeholder="Enter mobile"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="admin"
+              autoComplete="username"
               required
             />
           </label>
@@ -48,6 +48,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
+              autoComplete="current-password"
               required
             />
           </label>
