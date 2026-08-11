@@ -55,11 +55,6 @@ export default function LoginPage() {
             {busy ? 'Signing in…' : 'LOGIN'}
           </button>
         </form>
-        <p className="muted" style={{ marginTop: '1.2rem', fontSize: '0.8rem' }}>
-          Admin: 9999999999 / admin123
-          <br />
-          Staff: 9000000001 / staff123
-        </p>
       </div>
     </div>
   );

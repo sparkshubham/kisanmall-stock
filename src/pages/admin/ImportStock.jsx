@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
+import { parseSwilFile } from '../../utils/parseSwil';
+
+const CHUNK = 800;
 
 export default function ImportStock() {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -14,18 +18,47 @@ export default function ImportStock() {
     setBusy(true);
     setError('');
     setResult(null);
+    setProgress('Reading Excel…');
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const { data } = await api.post('/swil/import', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 180000,
+      const parsed = await parseSwilFile(file);
+      if (!parsed.items.length) {
+        setError(
+          parsed.errors[0] ||
+            `No valid product rows. Expected Barcode, NameToDisplay, Stock, MRP. Found: ${parsed.detectedHeaders.join(', ') || 'none'}`
+        );
+        return;
+      }
+
+      let importId = null;
+      let last = null;
+      for (let i = 0; i < parsed.items.length; i += CHUNK) {
+        const batch = parsed.items.slice(i, i + CHUNK);
+        const done = Math.min(i + CHUNK, parsed.items.length);
+        setProgress(`Saving ${done} / ${parsed.items.length} products…`);
+        const { data } = await api.post(
+          '/swil/import',
+          {
+            filename: file.name,
+            importId,
+            items: batch,
+          },
+          { timeout: 120000 }
+        );
+        importId = data.import.id;
+        last = data;
+      }
+
+      setResult({
+        ...last,
+        imported: last.imported,
+        warnings: parsed.errors.slice(0, 50),
       });
-      setResult(data);
+      setProgress('');
     } catch (err) {
-      const msg = err.response?.data?.message || 'Import failed';
+      const msg = err.response?.data?.message || err.message || 'Import failed';
       const details = err.response?.data?.details;
       setError(details?.length ? `${msg}: ${details.slice(0, 3).join('; ')}` : msg);
+      setProgress('');
     } finally {
       setBusy(false);
     }
@@ -35,8 +68,8 @@ export default function ImportStock() {
     <div>
       <h1 className="page-title">Import Stock</h1>
       <p className="page-sub">
-        Upload SWIL export (.xls / .xlsx). Supported columns: Barcode, NameToDisplay (or Product), Stock,
-        MRP, StockUnit. Duplicate barcodes (lots) are summed.
+        Upload SWIL export (.xls / .xlsx). File is parsed in the browser, then saved in fast batches.
+        Columns: Barcode, NameToDisplay (or Product), Stock, MRP. Duplicate barcodes (lots) are summed.
       </p>
       {error && <div className="alert error">{error}</div>}
       {result && (
@@ -48,11 +81,7 @@ export default function ImportStock() {
             Next step: create an audit from this SWIL snapshot, assign staff to racks, then start counting.
           </p>
           <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
-            <Link
-              className="btn"
-              to="/admin/audits/create"
-              state={{ importId: result.import.id }}
-            >
+            <Link className="btn" to="/admin/audits/create" state={{ importId: result.import.id }}>
               Create Audit
             </Link>
             <Link className="btn secondary" to="/admin/swil/products">
@@ -72,10 +101,15 @@ export default function ImportStock() {
       <form className="card form-grid" onSubmit={onSubmit}>
         <label>
           SWIL Excel File
-          <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+          />
         </label>
+        {busy && progress && <p className="muted">{progress}</p>}
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? 'Importing large file… please wait' : 'Validate & Import'}
+          {busy ? progress || 'Importing…' : 'Validate & Import'}
         </button>
       </form>
     </div>
