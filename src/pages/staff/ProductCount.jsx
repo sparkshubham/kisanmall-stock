@@ -41,7 +41,7 @@ export default function ProductCount() {
       const { data } = await api.post('/counts/save', {
         auditId,
         productId: product.id,
-        quantity: qty,
+        quantity: Number(qty) || 0,
       });
       sessionStorage.setItem('lastSaved', JSON.stringify(data));
       navigate('/staff/saved');
@@ -80,11 +80,32 @@ export default function ProductCount() {
           Physical Quantity
         </div>
         <div className="qty-control">
-          <button type="button" onClick={() => setQty((q) => Math.max(0, q - 1))}>
+          <button type="button" onClick={() => setQty((q) => Math.max(0, Number(q) - 1))}>
             −
           </button>
-          <span>{qty}</span>
-          <button type="button" onClick={() => setQty((q) => q + 1)}>
+          <input
+            className="qty-input"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="any"
+            value={qty}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (next === '') {
+                setQty('');
+                return;
+              }
+              const n = Number(next);
+              setQty(Number.isFinite(n) && n >= 0 ? next : qty);
+            }}
+            onBlur={() => {
+              const n = Number(qty);
+              setQty(Number.isFinite(n) && n >= 0 ? n : 0);
+            }}
+            aria-label="Physical quantity"
+          />
+          <button type="button" onClick={() => setQty((q) => Number(q || 0) + 1)}>
             +
           </button>
         </div>
