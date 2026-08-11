@@ -10,6 +10,7 @@ export default function ImportHistory() {
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
     const { data } = await api.get('/swil/history', {
@@ -26,10 +27,39 @@ export default function ImportHistory() {
 
   useEffect(() => setPage(1), [search]);
 
+  async function rename(r) {
+    const filename = window.prompt('File name', r.filename);
+    if (filename == null || !filename.trim() || filename.trim() === r.filename) return;
+    setBusyId(r.id);
+    setError('');
+    try {
+      await api.patch(`/swil/imports/${r.id}`, { filename: filename.trim() });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update import');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function remove(r) {
+    if (!window.confirm(`Delete import "${r.filename}"?`)) return;
+    setBusyId(r.id);
+    setError('');
+    try {
+      await api.delete(`/swil/imports/${r.id}`);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete import');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div>
       <h1 className="page-title">Import History</h1>
-      <p className="page-sub">Past SWIL stock uploads</p>
+      <p className="page-sub">Past SWIL stock uploads — rename or delete</p>
       {error && <div className="alert error">{error}</div>}
       <div className="list-toolbar">
         <label>
@@ -54,6 +84,7 @@ export default function ImportHistory() {
               <th>Products</th>
               <th>Imported By</th>
               <th>Date</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -64,11 +95,21 @@ export default function ImportHistory() {
                 <td>{r.productCount}</td>
                 <td>{r.importedBy?.name}</td>
                 <td>{new Date(r.importedAt).toLocaleString()}</td>
+                <td>
+                  <div className="row-actions">
+                    <button className="btn secondary sm" type="button" disabled={busyId === r.id} onClick={() => rename(r)}>
+                      Edit
+                    </button>
+                    <button className="btn danger sm" type="button" disabled={busyId === r.id} onClick={() => remove(r)}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={5} className="empty">
+                <td colSpan={6} className="empty">
                   No imports yet
                 </td>
               </tr>

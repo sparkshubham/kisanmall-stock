@@ -96,6 +96,7 @@ export default function AssignStaff() {
               <th>Location</th>
               <th>Staff</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -122,12 +123,38 @@ export default function AssignStaff() {
                   <td>
                     <span className="badge muted">{assignment?.status?.replace('_', ' ') || 'PENDING'}</span>
                   </td>
+                  <td>
+                    {assignment && (
+                      <button
+                        className="btn danger sm"
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          if (!window.confirm('Remove this assignment?')) return;
+                          setBusy(true);
+                          setError('');
+                          try {
+                            await api.delete(`/audits/${auditId}/assignments/${assignment.id}`);
+                            const refreshed = await api.get(`/audits/${auditId}`);
+                            setDetail(refreshed.data);
+                            setMap((prev) => ({ ...prev, [link.locationId]: '' }));
+                          } catch (err) {
+                            setError(err.response?.data?.message || 'Failed to remove assignment');
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </td>
                 </tr>
               );
             })}
             {!rows.length && (
               <tr>
-                <td colSpan={3} className="empty">
+                <td colSpan={4} className="empty">
                   No locations on this audit
                 </td>
               </tr>

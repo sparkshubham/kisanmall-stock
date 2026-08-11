@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
 
@@ -10,6 +11,7 @@ export default function AuditHistory() {
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
     const { data } = await api.get('/audits/history', {
@@ -25,6 +27,20 @@ export default function AuditHistory() {
   }, [load]);
 
   useEffect(() => setPage(1), [search]);
+
+  async function remove(a) {
+    if (!window.confirm(`Delete audit "${a.name}"?`)) return;
+    setBusyId(a.id);
+    setError('');
+    try {
+      await api.delete(`/audits/${a.id}`);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete audit');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <div>
@@ -54,6 +70,7 @@ export default function AuditHistory() {
               <th>Status</th>
               <th>Products</th>
               <th>Completed</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -66,11 +83,21 @@ export default function AuditHistory() {
                 </td>
                 <td>{a._count?.products ?? '—'}</td>
                 <td>{a.completedAt ? new Date(a.completedAt).toLocaleString() : '—'}</td>
+                <td>
+                  <div className="row-actions">
+                    <Link className="btn secondary sm" to={`/admin/audits/${a.id}`}>
+                      View
+                    </Link>
+                    <button className="btn danger sm" type="button" disabled={busyId === a.id} onClick={() => remove(a)}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={5} className="empty">
+                <td colSpan={6} className="empty">
                   No completed audits yet
                 </td>
               </tr>

@@ -11,6 +11,9 @@ export default function Locations() {
   const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [type, setType] = useState('RACK');
+  const [description, setDescription] = useState('');
+  const [isActive, setIsActive] = useState(true);
+  const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -29,25 +32,58 @@ export default function Locations() {
 
   useEffect(() => setPage(1), [search]);
 
+  function resetForm() {
+    setEditingId(null);
+    setName('');
+    setType('RACK');
+    setDescription('');
+    setIsActive(true);
+  }
+
+  function startEdit(l) {
+    setEditingId(l.id);
+    setName(l.name);
+    setType(l.type);
+    setDescription(l.description || '');
+    setIsActive(l.isActive);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     setBusy(true);
     setError('');
     try {
-      await api.post('/locations', { name, type });
-      setName('');
+      if (editingId) {
+        await api.patch(`/locations/${editingId}`, { name, type, description, isActive });
+      } else {
+        await api.post('/locations', { name, type, description });
+      }
+      resetForm();
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create location');
+      setError(err.response?.data?.message || 'Failed to save location');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function remove(l) {
+    if (!window.confirm(`Delete location "${l.name}"?`)) return;
+    setError('');
+    try {
+      await api.delete(`/locations/${l.id}`);
+      if (editingId === l.id) resetForm();
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete location');
     }
   }
 
   return (
     <div>
       <h1 className="page-title">Locations</h1>
-      <p className="page-sub">Racks, warehouse and other count locations</p>
+      <p className="page-sub">Create, edit or remove racks, warehouse and other count locations</p>
       {error && <div className="alert error">{error}</div>}
       <form className="card form-grid" onSubmit={onSubmit} style={{ marginBottom: '1.25rem' }}>
         <label>
@@ -62,9 +98,29 @@ export default function Locations() {
             <option value="OTHER">Other</option>
           </select>
         </label>
-        <button className="btn" type="submit" disabled={busy}>
-          Add Location
-        </button>
+        <label>
+          Description
+          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+        </label>
+        {editingId && (
+          <label>
+            Active
+            <select value={isActive ? 'yes' : 'no'} onChange={(e) => setIsActive(e.target.value === 'yes')}>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+        )}
+        <div className="row-actions">
+          <button className="btn" type="submit" disabled={busy}>
+            {editingId ? 'Update Location' : 'Add Location'}
+          </button>
+          {editingId && (
+            <button className="btn secondary" type="button" onClick={resetForm}>
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
       <div className="list-toolbar">
         <label>
@@ -87,6 +143,7 @@ export default function Locations() {
               <th>Name</th>
               <th>Type</th>
               <th>Active</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -95,11 +152,21 @@ export default function Locations() {
                 <td>{l.name}</td>
                 <td>{l.type}</td>
                 <td>{l.isActive ? 'Yes' : 'No'}</td>
+                <td>
+                  <div className="row-actions">
+                    <button className="btn secondary sm" type="button" onClick={() => startEdit(l)}>
+                      Edit
+                    </button>
+                    <button className="btn danger sm" type="button" onClick={() => remove(l)}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={3} className="empty">
+                <td colSpan={4} className="empty">
                   No locations
                 </td>
               </tr>

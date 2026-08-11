@@ -13,6 +13,8 @@ const BARCODE_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE,
 ];
 
+const CAMERA_KEY = 'kisan-scan-camera';
+
 async function stopScanner(scanner) {
   if (!scanner) return;
   try {
@@ -49,6 +51,13 @@ function explainError(err) {
   return msg ? `Camera error: ${msg}` : 'Camera unavailable. Use manual entry or Retry.';
 }
 
+function rankCameras(cameras) {
+  return [...cameras].sort((a, b) => {
+    const score = (c) => (/back|rear|environment|world/i.test(c.label || '') ? 0 : 1);
+    return score(a) - score(b);
+  });
+}
+
 export default function BarcodeCameraScanner({ onDetected, active = true }) {
   const reactId = useId().replace(/:/g, '');
   const elementId = `barcode-reader-${reactId}`;
@@ -56,10 +65,17 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
   const onDetectedRef = useRef(onDetected);
   const lockRef = useRef(false);
   const mountedRef = useRef(true);
+  const startingRef = useRef(false);
 
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('Tap Open Camera to scan');
   const [detail, setDetail] = useState('');
+  const [cameras, setCameras] = useState([]);
+  const [cameraId, setCameraId] = useState(() => localStorage.getItem(CAMERA_KEY) || '');
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [zoomRange, setZoomRange] = useState(null);
 
   onDetectedRef.current = onDetected;
 
@@ -80,115 +96,196 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
       stopScanner(s);
       setStatus('idle');
       setMessage('Tap Open Camera to scan');
+      setTorchOn(false);
     }
   }, [active]);
 
-  const startCamera = useCallback(async () => {
-    if (!active) return;
-
-    setStatus('starting');
-    setMessage('Requesting camera permission…');
-    setDetail('');
-    lockRef.current = false;
-
-    await stopScanner(scannerRef.current);
-    scannerRef.current = null;
-
-    await new Promise((r) => setTimeout(r, 80));
-    if (!document.getElementById(elementId)) {
-      setStatus('error');
-      setMessage('Scanner area not ready. Tap Retry.');
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus('error');
-      setMessage('This browser does not support camera access.');
-      return;
-    }
-
-    // Unlock permission under user tap
+  const readCapabilities = useCallback(() => {
+    const scanner = scannerRef.current;
+    if (!scanner) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: true,
-      });
-      stream.getTracks().forEach((t) => t.stop());
-    } catch (err) {
-      setStatus('error');
-      setMessage(explainError(err));
-      setDetail(`URL: ${window.location.origin}`);
-      return;
-    }
-
-    const config = {
-      fps: 10,
-      qrbox: (w, h) => ({
-        width: Math.max(180, Math.min(280, Math.floor(w * 0.85))),
-        height: Math.max(70, Math.min(110, Math.floor(h * 0.28))),
-      }),
-      rememberLastUsedCamera: true,
-    };
-
-    const onSuccess = (decodedText) => {
-      if (!mountedRef.current || lockRef.current) return;
-      const code = String(decodedText || '').trim();
-      if (!code) return;
-      lockRef.current = true;
-      onDetectedRef.current?.(code);
-    };
-
-    const cameraTargets = [];
-    try {
-      const cameras = await Html5Qrcode.getCameras();
-      if (cameras?.length) {
-        const ranked = [...cameras].sort((a, b) => {
-          const score = (c) => (/back|rear|environment|world/i.test(c.label || '') ? 0 : 1);
-          return score(a) - score(b);
+      const caps = scanner.getRunningTrackCapabilities?.() || {};
+      const settings = scanner.getRunningTrackSettings?.() || {};
+      const torchOk = Boolean(caps.torch);
+      setTorchSupported(torchOk);
+      if (caps.zoom && typeof caps.zoom.min === 'number') {
+        setZoomRange({
+          min: caps.zoom.min,
+          max: caps.zoom.max,
+          step: caps.zoom.step || 0.1,
         });
-        ranked.forEach((c) => cameraTargets.push(c.id));
+        setZoom(Number(settings.zoom) || caps.zoom.min || 1);
+      } else {
+        setZoomRange(null);
       }
     } catch {
-      /* ignore */
+      setTorchSupported(false);
+      setZoomRange(null);
     }
-    cameraTargets.push({ facingMode: 'environment' }, { facingMode: 'user' });
+  }, []);
 
-    let lastError = null;
-    for (const target of cameraTargets) {
-      if (!mountedRef.current) return;
+  const applyConstraint = useCallback(async (partial) => {
+    const scanner = scannerRef.current;
+    if (!scanner) return;
+    try {
+      await scanner.applyVideoConstraints(partial);
+    } catch {
+      /* some browsers reject advanced constraints */
+    }
+  }, []);
+
+  const startWithCamera = useCallback(
+    async (preferredId) => {
+      if (!active || startingRef.current) return;
+      startingRef.current = true;
+
+      setStatus('starting');
+      setMessage('Requesting camera permission…');
+      setDetail('');
+      setTorchOn(false);
+      lockRef.current = false;
+
       await stopScanner(scannerRef.current);
       scannerRef.current = null;
 
+      await new Promise((r) => setTimeout(r, 60));
       if (!document.getElementById(elementId)) {
-        lastError = new Error('Scanner element missing');
-        break;
+        startingRef.current = false;
+        setStatus('error');
+        setMessage('Scanner area not ready. Tap Retry.');
+        return;
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        startingRef.current = false;
+        setStatus('error');
+        setMessage('This browser does not support camera access.');
+        return;
       }
 
       try {
-        const scanner = new Html5Qrcode(elementId, {
-          formatsToSupport: BARCODE_FORMATS,
-          verbose: false,
-        });
-        scannerRef.current = scanner;
-        await scanner.start(target, config, onSuccess, () => {});
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (err) {
+        startingRef.current = false;
+        setStatus('error');
+        setMessage(explainError(err));
+        setDetail(`URL: ${window.location.origin}`);
+        return;
+      }
+
+      let available = [];
+      try {
+        available = rankCameras(await Html5Qrcode.getCameras());
+        if (mountedRef.current) setCameras(available);
+      } catch {
+        available = [];
+      }
+
+      const saved = preferredId || localStorage.getItem(CAMERA_KEY) || '';
+      const targets = [];
+      if (saved && available.some((c) => c.id === saved)) targets.push(saved);
+      available.forEach((c) => {
+        if (!targets.includes(c.id)) targets.push(c.id);
+      });
+      targets.push({ facingMode: 'environment' }, { facingMode: 'user' });
+
+      const config = {
+        fps: 12,
+        qrbox: (w, h) => ({
+          width: Math.max(180, Math.min(300, Math.floor(w * 0.88))),
+          height: Math.max(70, Math.min(120, Math.floor(h * 0.3))),
+        }),
+        rememberLastUsedCamera: true,
+        aspectRatio: 3 / 4,
+      };
+
+      const onSuccess = (decodedText) => {
+        if (!mountedRef.current || lockRef.current) return;
+        const code = String(decodedText || '').trim();
+        if (!code) return;
+        lockRef.current = true;
+        onDetectedRef.current?.(code);
+      };
+
+      let lastError = null;
+      for (const target of targets) {
         if (!mountedRef.current) {
-          await stopScanner(scanner);
+          startingRef.current = false;
           return;
         }
-        setStatus('ready');
-        setMessage('Point camera at product barcode');
-        setDetail('');
-        return;
-      } catch (err) {
-        lastError = err;
-      }
-    }
+        await stopScanner(scannerRef.current);
+        scannerRef.current = null;
+        if (!document.getElementById(elementId)) break;
 
-    if (!mountedRef.current) return;
-    setStatus('error');
-    setMessage(explainError(lastError));
-    setDetail(`Tried ${cameraTargets.length} camera option(s). URL: ${window.location.origin}`);
-  }, [active, elementId]);
+        try {
+          const scanner = new Html5Qrcode(elementId, {
+            formatsToSupport: BARCODE_FORMATS,
+            verbose: false,
+          });
+          scannerRef.current = scanner;
+          await scanner.start(target, config, onSuccess, () => {});
+          if (!mountedRef.current) {
+            await stopScanner(scanner);
+            startingRef.current = false;
+            return;
+          }
+          const usedId = typeof target === 'string' ? target : scanner.getRunningTrackSettings?.()?.deviceId;
+          if (usedId) {
+            setCameraId(usedId);
+            localStorage.setItem(CAMERA_KEY, usedId);
+          }
+          setStatus('ready');
+          setMessage('Point camera at product barcode');
+          setDetail('');
+          readCapabilities();
+          startingRef.current = false;
+          return;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      startingRef.current = false;
+      if (!mountedRef.current) return;
+      setStatus('error');
+      setMessage(explainError(lastError));
+      setDetail(`Tried ${targets.length} camera option(s).`);
+    },
+    [active, elementId, readCapabilities]
+  );
+
+  const switchCamera = useCallback(
+    async (nextId) => {
+      if (!nextId || nextId === cameraId) return;
+      localStorage.setItem(CAMERA_KEY, nextId);
+      setCameraId(nextId);
+      await startWithCamera(nextId);
+    },
+    [cameraId, startWithCamera]
+  );
+
+  const flipCamera = useCallback(async () => {
+    if (cameras.length < 2) return;
+    const idx = cameras.findIndex((c) => c.id === cameraId);
+    const next = cameras[(idx + 1) % cameras.length];
+    if (next) await switchCamera(next.id);
+  }, [cameras, cameraId, switchCamera]);
+
+  const toggleTorch = useCallback(async () => {
+    const next = !torchOn;
+    setTorchOn(next);
+    await applyConstraint({ advanced: [{ torch: next }] });
+  }, [torchOn, applyConstraint]);
+
+  const changeZoom = useCallback(
+    async (value) => {
+      const next = Number(value);
+      setZoom(next);
+      await applyConstraint({ advanced: [{ zoom: next }] });
+    },
+    [applyConstraint]
+  );
 
   if (!active) return null;
 
@@ -200,14 +297,61 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
           <div className="scan-overlay-msg">
             <div>{status === 'starting' ? 'Opening camera…' : message}</div>
             {status === 'idle' && (
-              <button type="button" className="btn" style={{ marginTop: '1rem' }} onClick={startCamera}>
+              <button type="button" className="btn" style={{ marginTop: '1rem' }} onClick={() => startWithCamera()}>
                 Open Camera
               </button>
             )}
           </div>
         )}
         {status === 'ready' && <div className="scan-guide" aria-hidden />}
+
+        {status === 'ready' && (
+          <div className="camera-controls">
+            <div className="camera-controls-row">
+              {cameras.length > 1 && (
+                <button type="button" className="camera-chip" onClick={flipCamera}>
+                  Flip camera
+                </button>
+              )}
+              {torchSupported && (
+                <button
+                  type="button"
+                  className={`camera-chip ${torchOn ? 'is-on' : ''}`}
+                  onClick={toggleTorch}
+                >
+                  {torchOn ? 'Light on' : 'Light'}
+                </button>
+              )}
+            </div>
+            {zoomRange && (
+              <label className="camera-zoom">
+                Zoom
+                <input
+                  type="range"
+                  min={zoomRange.min}
+                  max={zoomRange.max}
+                  step={zoomRange.step}
+                  value={zoom}
+                  onChange={(e) => changeZoom(e.target.value)}
+                />
+              </label>
+            )}
+          </div>
+        )}
       </div>
+
+      {status === 'ready' && cameras.length > 0 && (
+        <label className="camera-select">
+          Camera
+          <select value={cameraId} onChange={(e) => switchCamera(e.target.value)}>
+            {cameras.map((cam, i) => (
+              <option key={cam.id} value={cam.id}>
+                {cam.label || `Camera ${i + 1}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <p className="scan-hint">
         {status === 'ready'
@@ -223,7 +367,7 @@ export default function BarcodeCameraScanner({ onDetected, active = true }) {
       )}
 
       {(status === 'error' || status === 'idle') && (
-        <button type="button" className="btn block" onClick={startCamera}>
+        <button type="button" className="btn block" onClick={() => startWithCamera()}>
           {status === 'error' ? 'Retry Camera' : 'Open Camera'}
         </button>
       )}

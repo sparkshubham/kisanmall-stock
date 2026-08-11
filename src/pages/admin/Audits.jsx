@@ -52,6 +52,35 @@ export default function Audits() {
     }
   }
 
+  async function rename(a) {
+    const name = window.prompt('Audit name', a.name);
+    if (name == null || !name.trim() || name.trim() === a.name) return;
+    setBusyId(a.id);
+    setError('');
+    try {
+      await api.patch(`/audits/${a.id}`, { name: name.trim() });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update audit');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function remove(a) {
+    if (!window.confirm(`Delete audit "${a.name}" and all its counts?`)) return;
+    setBusyId(a.id);
+    setError('');
+    try {
+      await api.delete(`/audits/${a.id}`);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete audit');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div>
       <h1 className="page-title">Audits</h1>
@@ -118,6 +147,12 @@ export default function Audits() {
                   <Link className="btn secondary" to="/admin/audits/assign" state={{ auditId: a.id }}>
                     Assign
                   </Link>
+                  <button className="btn secondary" type="button" disabled={busyId === a.id} onClick={() => rename(a)}>
+                    Edit
+                  </button>
+                  <button className="btn danger" type="button" disabled={busyId === a.id} onClick={() => remove(a)}>
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}

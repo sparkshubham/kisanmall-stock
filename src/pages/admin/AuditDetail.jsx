@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../api/client';
 
 export default function AuditDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: '', storeName: '', notes: '' });
 
   async function load() {
     const res = await api.get(`/audits/${id}`);
     setData(res.data);
+    setForm({
+      name: res.data.name || '',
+      storeName: res.data.storeName || '',
+      notes: res.data.notes || '',
+    });
   }
 
   useEffect(() => {
@@ -29,6 +37,48 @@ export default function AuditDetail() {
       await load();
     } catch (err) {
       setError(err.response?.data?.message || 'Action failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function saveAudit(e) {
+    e.preventDefault();
+    setBusy('save');
+    setError('');
+    try {
+      await api.patch(`/audits/${id}`, form);
+      setEditing(false);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update audit');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function removeAudit() {
+    if (!window.confirm(`Delete audit "${data.name}" and all its counts?`)) return;
+    setBusy('delete');
+    setError('');
+    try {
+      await api.delete(`/audits/${id}`);
+      navigate('/admin/audits');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete audit');
+      setBusy('');
+    }
+  }
+
+  async function unassign(assignmentId) {
+    if (!window.confirm('Remove this staff assignment?')) return;
+    setBusy(`unassign-${assignmentId}`);
+    setError('');
+    try {
+      await api.delete(`/audits/${id}/assignments/${assignmentId}`);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to remove assignment');
     } finally {
       setBusy('');
     }
@@ -75,10 +125,36 @@ export default function AuditDetail() {
           <Link className="btn secondary" to="/admin/reports/comparison">
             Comparison
           </Link>
+          <button className="btn secondary" type="button" onClick={() => setEditing((v) => !v)}>
+            {editing ? 'Close Edit' : 'Edit'}
+          </button>
+          <button className="btn danger" type="button" disabled={!!busy} onClick={removeAudit}>
+            Delete
+          </button>
         </div>
       </div>
 
       {error && <div className="alert error">{error}</div>}
+
+      {editing && (
+        <form className="card form-grid" onSubmit={saveAudit} style={{ marginBottom: '1.25rem' }}>
+          <label>
+            Name
+            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+          </label>
+          <label>
+            Store
+            <input value={form.storeName} onChange={(e) => setForm((f) => ({ ...f, storeName: e.target.value }))} />
+          </label>
+          <label>
+            Notes
+            <input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+          </label>
+          <button className="btn" type="submit" disabled={busy === 'save'}>
+            Save Changes
+          </button>
+        </form>
+      )}
 
       <div className="grid-stats">
         <div className="stat">
@@ -116,6 +192,7 @@ export default function AuditDetail() {
               <th>Staff</th>
               <th>Mobile</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -133,11 +210,21 @@ export default function AuditDetail() {
                     {String(a.status || '').replace('_', ' ')}
                   </span>
                 </td>
+                <td>
+                  <button
+                    className="btn danger sm"
+                    type="button"
+                    disabled={busy === `unassign-${a.id}`}
+                    onClick={() => unassign(a.id)}
+                  >
+                    Remove
+                  </button>
+                </td>
               </tr>
             ))}
             {!(p.assignments || data.assignments || []).length && (
               <tr>
-                <td colSpan={4} className="empty">
+                <td colSpan={5} className="empty">
                   No staff assigned yet
                 </td>
               </tr>
