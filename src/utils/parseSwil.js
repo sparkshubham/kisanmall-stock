@@ -71,23 +71,32 @@ export function parseSwilRows(rows) {
       'PCS';
 
     if (!barcode && !name) return;
-    if (!barcode || !name) {
-      errors.push(`Row ${index + 2}: barcode and product name are required`);
+    if (!name) {
+      errors.push(`Row ${index + 2}: product name is required`);
       return;
     }
 
-    const quantity = toNumber(
+    const purchaseQty = toNumber(
+      pickField(row, ['purchaseqty', 'purchase qty', 'purchase', 'pur qty', 'purchased qty'])
+    );
+    const salesQty = toNumber(
+      pickField(row, ['salesqty', 'sales qty', 'sale qty', 'sold qty', 'sales', 'saleqty'])
+    );
+    const closingQty = toNumber(
       pickField(row, [
-        'stock',
-        'stock(unit1)',
-        'quantity',
-        'qty',
-        'swil qty',
-        'swil quantity',
+        'cl.stock as on',
+        'cl stock as on',
+        'cl.stock',
+        'closing qty',
         'closing stock',
-        'balance',
+        'closing',
+        'cl stock',
       ])
     );
+    const stockQty = toNumber(
+      pickField(row, ['stock', 'stock(unit1)', 'quantity', 'qty', 'swil qty', 'swil quantity', 'balance'])
+    );
+    const quantity = closingQty || stockQty;
     if (Number.isNaN(quantity)) {
       errors.push(`Row ${index + 2}: invalid quantity`);
       return;
@@ -99,9 +108,13 @@ export function parseSwilRows(rows) {
     if (!salePrice && mrp && discountAmt) salePrice = Math.max(0, mrp - discountAmt);
     if (!salePrice) salePrice = mrp;
 
-    const existing = byBarcode.get(barcode);
+    const key = barcode || name.slice(0, 500).toLowerCase();
+    const existing = byBarcode.get(key);
     if (existing) {
       existing.quantity += quantity;
+      existing.purchaseQty += purchaseQty;
+      existing.salesQty += salesQty;
+      existing.closingQty += closingQty || quantity;
       if (name) existing.name = name;
       if (mrp) existing.mrp = mrp;
       if (salePrice) existing.salePrice = salePrice;
@@ -109,10 +122,13 @@ export function parseSwilRows(rows) {
       return;
     }
 
-    byBarcode.set(barcode, {
+    byBarcode.set(key, {
       barcode,
       name: name.slice(0, 500),
       quantity,
+      purchaseQty,
+      salesQty,
+      closingQty: closingQty || quantity,
       mrp,
       salePrice,
       unit: unit.slice(0, 40),

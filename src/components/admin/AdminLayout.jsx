@@ -41,6 +41,7 @@ const sections = [
     title: 'Reports',
     items: [
       { to: '/admin/reports/comparison', label: 'Stock Comparison' },
+      { to: '/admin/reports/movement', label: 'Purchase / Sale / Closing' },
       { to: '/admin/reports/audit', label: 'Audit Report' },
       { to: '/admin/reports/shortage', label: 'Shortage Report' },
       { to: '/admin/reports/excess', label: 'Excess Report' },

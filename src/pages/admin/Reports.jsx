@@ -5,6 +5,7 @@ import Pagination from '../../components/common/Pagination';
 
 const titles = {
   comparison: 'Stock Comparison',
+  movement: 'Purchase / Sale / Closing',
   audit: 'Audit Report',
   shortage: 'Shortage Report',
   excess: 'Excess Report',
@@ -48,9 +49,11 @@ export default function Reports() {
           ? `/reports/excess/${auditId}`
           : type === 'location'
             ? `/reports/location-wise/${auditId}`
-            : type === 'audit'
-              ? `/reports/audit-summary/${auditId}`
-              : `/reports/comparison/${auditId}`;
+            : type === 'movement'
+              ? `/reports/movement/${auditId}`
+              : type === 'audit'
+                ? `/reports/audit-summary/${auditId}`
+                : `/reports/comparison/${auditId}`;
 
     api
       .get(endpoint, { params: { page, pageSize: 25, q: search || undefined } })
@@ -73,6 +76,9 @@ export default function Reports() {
     if (!rows.length) return [];
     if (type === 'location') {
       return ['location', 'product', 'barcode', 'quantity', 'countedBy', 'countedAt'];
+    }
+    if (type === 'movement') {
+      return ['product', 'barcode', 'unit', 'purchase', 'sales', 'closing', 'physical', 'variance', 'status'];
     }
     return Object.keys(rows[0]).filter(
       (k) => !['productId', 'needsRecount', 'isVerified', 'isFinalized'].includes(k)

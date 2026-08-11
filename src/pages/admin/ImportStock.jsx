@@ -24,7 +24,7 @@ export default function ImportStock() {
       if (!parsed.items.length) {
         setError(
           parsed.errors[0] ||
-            `No valid product rows. Expected Barcode, NameToDisplay, Stock, MRP. Found: ${parsed.detectedHeaders.join(', ') || 'none'}`
+            `No valid product rows. Expected NameToDisplay (or Product), plus Stock / PurchaseQty / SalesQty / Cl.Stock As On. Found: ${parsed.detectedHeaders.join(', ') || 'none'}`
         );
         return;
       }
@@ -69,7 +69,8 @@ export default function ImportStock() {
       <h1 className="page-title">Import Stock</h1>
       <p className="page-sub">
         Upload SWIL export (.xls / .xlsx). File is parsed in the browser, then saved in fast batches.
-        Columns: Barcode, NameToDisplay (or Product), Stock, MRP. Duplicate barcodes (lots) are summed.
+        Columns: NameToDisplay, Barcode (optional), Stock or Cl.Stock As On, PurchaseQty, SalesQty, MRP.
+        Rows without barcode are matched to existing products by name. Duplicate barcodes/names are summed.
       </p>
       {error && <div className="alert error">{error}</div>}
       {result && (

@@ -164,6 +164,9 @@ export default function ImportedProducts() {
               <th>MRP</th>
               <th>Sale</th>
               <th>Discount</th>
+              <th>Purchase</th>
+              <th>Sales</th>
+              <th>Closing</th>
               <th>Unit</th>
               <th>Actions</th>
             </tr>
@@ -176,6 +179,9 @@ export default function ImportedProducts() {
                 <td>₹{Number(p.mrp).toFixed(2)}</td>
                 <td>₹{Number(p.salePrice || p.mrp).toFixed(2)}</td>
                 <td>₹{Math.max(0, Number(p.mrp) - Number(p.salePrice || p.mrp)).toFixed(2)}</td>
+                <td>{Number(p.purchaseQty || 0)}</td>
+                <td>{Number(p.salesQty || 0)}</td>
+                <td>{Number(p.closingQty || 0)}</td>
                 <td>{p.unit}</td>
                 <td>
                   <div className="row-actions">
@@ -191,7 +197,7 @@ export default function ImportedProducts() {
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={7} className="empty">
+                <td colSpan={10} className="empty">
                   No products found
                 </td>
               </tr>
