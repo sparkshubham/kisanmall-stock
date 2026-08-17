@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
+import { downloadCsv, downloadXlsx, fetchAllPages, fileStampName } from '../../utils/exportSheet';
 
 const titles = {
   physical: 'Physical Stock',
@@ -30,7 +31,9 @@ export default function StockViews() {
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     if (!auditId || !type) return;
@@ -71,6 +74,62 @@ export default function StockViews() {
     }
   }
 
+  function toSheetRows(list) {
+    return list.map((r) => ({
+      Product: r.product?.name || '',
+      Barcode: r.product?.barcode || '',
+      Unit: r.product?.unit || '',
+      MRP: Number(r.product?.mrp) || 0,
+      SWIL: Number(r.swilQty) || 0,
+      Physical: Number(r.physicalQty) || 0,
+      Difference: Number(r.difference) || 0,
+      Locations:
+        (r.locationCounts || [])
+          .map((c) => `${c.location?.name || ''}: ${Number(c.quantity) || 0}`)
+          .join(' | ') || '',
+      Status: r.status || '',
+      Verified: r.isVerified ? 'Yes' : 'No',
+    }));
+  }
+
+  async function loadAllRows() {
+    const status = apiStatus[type] || 'PHYSICAL';
+    return fetchAllPages(async (pageNum) => {
+      const { data } = await api.get(`/audits/${auditId}/stock/${status}`, {
+        params: { page: pageNum, pageSize: 5000, q: search || undefined },
+        timeout: 120000,
+      });
+      return data;
+    });
+  }
+
+  async function exportSheet(kind) {
+    if (!auditId) return;
+    setError('');
+    setMessage('');
+    setExporting(true);
+    try {
+      const list = await loadAllRows();
+      const sheet = toSheetRows(list);
+      if (!sheet.length) {
+        setError('No rows to export');
+        return;
+      }
+      const audit = audits.find((a) => String(a.id) === String(auditId));
+      const prefix = `${titles[type] || 'stock'}_${audit?.name || `audit_${auditId}`}`;
+      if (kind === 'csv') {
+        downloadCsv(fileStampName(prefix, 'csv'), sheet);
+      } else {
+        downloadXlsx(fileStampName(prefix, 'xlsx'), sheet, titles[type] || 'Stock');
+      }
+      setMessage(`Exported ${sheet.length} rows`);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function verify(productId) {
     setBusy(productId);
     try {
@@ -88,6 +147,7 @@ export default function StockViews() {
       <h1 className="page-title">{titles[type] || 'Stock'}</h1>
       <p className="page-sub">Admin view of SWIL vs physical results ({total} products)</p>
       {error && <div className="alert error">{error}</div>}
+      {message && <div className="alert success">{message}</div>}
       <div className="list-toolbar">
         <label style={{ minWidth: 240 }}>
           Audit
@@ -112,6 +172,22 @@ export default function StockViews() {
         </label>
         <button className="btn secondary" type="button" onClick={() => setSearch(q.trim())}>
           Search
+        </button>
+        <button
+          className="btn"
+          type="button"
+          disabled={!auditId || exporting}
+          onClick={() => exportSheet('xlsx')}
+        >
+          {exporting ? 'Exporting…' : 'Export Excel'}
+        </button>
+        <button
+          className="btn secondary"
+          type="button"
+          disabled={!auditId || exporting}
+          onClick={() => exportSheet('csv')}
+        >
+          Export CSV
         </button>
       </div>
       <div className="table-wrap">

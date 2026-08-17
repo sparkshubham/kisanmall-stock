@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
+import { downloadCsv, downloadXlsx, fetchAllPages, fileStampName } from '../../utils/exportSheet';
 
 export default function MyCounts() {
   const navigate = useNavigate();
@@ -12,6 +13,8 @@ export default function MyCounts() {
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     const auditId = sessionStorage.getItem('auditId');
@@ -34,6 +37,51 @@ export default function MyCounts() {
 
   useEffect(() => setPage(1), [search]);
 
+  async function exportSheet(kind) {
+    setError('');
+    setMessage('');
+    setExporting(true);
+    try {
+      const auditId = sessionStorage.getItem('auditId');
+      const list = await fetchAllPages(async (pageNum) => {
+        const { data } = await api.get('/counts/my-counts', {
+          params: {
+            page: pageNum,
+            pageSize: 5000,
+            q: search || undefined,
+            ...(auditId ? { auditId } : {}),
+          },
+          timeout: 120000,
+        });
+        return data;
+      });
+      const sheet = list.map((r) => ({
+        Product: r.product?.name || '',
+        Barcode: r.product?.barcode || '',
+        Location: r.location?.name || '',
+        Quantity: Number(r.quantity) || 0,
+        Unit: r.product?.unit || '',
+        CountedAt: r.countedAt ? new Date(r.countedAt).toLocaleString() : '',
+        Audit: r.audit?.name || '',
+      }));
+      if (!sheet.length) {
+        setError('No counts to export');
+        return;
+      }
+      const prefix = 'my_physical_counts';
+      if (kind === 'csv') {
+        downloadCsv(fileStampName(prefix, 'csv'), sheet);
+      } else {
+        downloadXlsx(fileStampName(prefix, 'xlsx'), sheet, 'My Counts');
+      }
+      setMessage(`Exported ${sheet.length} rows`);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div>
       <button className="btn secondary" type="button" onClick={() => navigate('/staff')}>
@@ -44,6 +92,7 @@ export default function MyCounts() {
       </h1>
       <p className="page-sub">Only your counting records — no SWIL or shortage data</p>
       {error && <div className="alert error">{error}</div>}
+      {message && <div className="alert success">{message}</div>}
       <div className="list-toolbar">
         <label>
           Search
@@ -56,6 +105,12 @@ export default function MyCounts() {
         </label>
         <button className="btn secondary" type="button" onClick={() => setSearch(q.trim())}>
           Search
+        </button>
+        <button className="btn" type="button" disabled={exporting} onClick={() => exportSheet('xlsx')}>
+          {exporting ? 'Exporting…' : 'Export Excel'}
+        </button>
+        <button className="btn secondary" type="button" disabled={exporting} onClick={() => exportSheet('csv')}>
+          Export CSV
         </button>
       </div>
       <div className="count-list">
