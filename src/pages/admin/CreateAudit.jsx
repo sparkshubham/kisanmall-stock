@@ -13,6 +13,7 @@ export default function CreateAudit() {
   const [imports, setImports] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
   const [importId, setImportId] = useState(prefImportId);
+  const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -29,6 +30,19 @@ export default function CreateAudit() {
       })
       .catch((err) => setError(err.response?.data?.message || 'Failed to load form data'));
   }, []);
+
+  useEffect(() => {
+    if (!importId) {
+      setPreview(null);
+      return;
+    }
+    api
+      .get('/audits/rolling-preview', {
+        params: { storeName, importId: Number(importId) },
+      })
+      .then((res) => setPreview(res.data))
+      .catch(() => setPreview(null));
+  }, [storeName, importId]);
 
   function toggleLocation(id) {
     setSelectedLocations((prev) =>
@@ -64,16 +78,42 @@ export default function CreateAudit() {
     <div>
       <h1 className="page-title">Create Audit</h1>
       <p className="page-sub">
-        Snapshot SWIL stock into a new audit, then assign staff to locations for blind counting.
+        Rolling stock audit: expected stock = last physical audit + purchases − sales. Upload period
+        purchase/sale data, then count physically without stopping mall operations.
       </p>
       {error && <div className="alert error">{error}</div>}
+      {preview && (
+        <div className="card" style={{ marginBottom: '1rem', borderColor: 'rgba(36,122,60,0.35)' }}>
+          <strong>Rolling audit preview</strong>
+          <p className="muted" style={{ margin: '0.5rem 0' }}>
+            {preview.formula}
+          </p>
+          {preview.previousAudit ? (
+            <p style={{ margin: 0 }}>
+              Previous audit: <strong>{preview.previousAudit.name}</strong>
+              {preview.previousAudit.completedAt
+                ? ` · ${new Date(preview.previousAudit.completedAt).toLocaleDateString()}`
+                : ''}
+              · {preview.baselineProducts} products with physical baseline
+            </p>
+          ) : (
+            <p style={{ margin: 0 }}>
+              No previous completed audit for this store — first audit will use uploaded closing stock
+              where period purchase/sale is missing.
+            </p>
+          )}
+          <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+            Selected import: {preview.importRowCount} products
+          </p>
+        </div>
+      )}
       <form className="card form-grid" onSubmit={onSubmit} style={{ maxWidth: 640 }}>
         <label>
           Audit Name
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="August Physical Stock Audit"
+            placeholder="22 Sep Physical Stock Audit"
             required
           />
         </label>
@@ -82,7 +122,7 @@ export default function CreateAudit() {
           <input value={storeName} onChange={(e) => setStoreName(e.target.value)} required />
         </label>
         <label>
-          SWIL Import Source
+          Period Import (Purchase / Sale / Closing)
           <select value={importId} onChange={(e) => setImportId(e.target.value)} required>
             <option value="">Select import</option>
             {imports.map((imp) => (
@@ -115,7 +155,7 @@ export default function CreateAudit() {
           <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? 'Creating audit snapshot…' : 'Create Audit'}
+          {busy ? 'Creating rolling audit snapshot…' : 'Create Audit'}
         </button>
       </form>
     </div>

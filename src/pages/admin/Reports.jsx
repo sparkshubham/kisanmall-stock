@@ -5,7 +5,7 @@ import Pagination from '../../components/common/Pagination';
 
 const titles = {
   comparison: 'Stock Comparison',
-  movement: 'Purchase / Sale / Closing',
+  movement: 'Rolling Movement (Opening + Purchase − Sale)',
   audit: 'Audit Report',
   shortage: 'Shortage Report',
   excess: 'Excess Report',
@@ -78,7 +78,34 @@ export default function Reports() {
       return ['location', 'product', 'barcode', 'quantity', 'countedBy', 'countedAt'];
     }
     if (type === 'movement') {
-      return ['product', 'barcode', 'unit', 'purchase', 'sales', 'closing', 'physical', 'variance', 'status'];
+      return [
+        'product',
+        'barcode',
+        'unit',
+        'opening',
+        'purchase',
+        'sales',
+        'expected',
+        'bookClosing',
+        'physical',
+        'variance',
+        'status',
+      ];
+    }
+    if (type === 'comparison') {
+      return [
+        'product',
+        'barcode',
+        'unit',
+        'opening',
+        'purchase',
+        'sales',
+        'expected',
+        'bookClosing',
+        'physical',
+        'difference',
+        'status',
+      ];
     }
     return Object.keys(rows[0]).filter(
       (k) => !['productId', 'needsRecount', 'isVerified', 'isFinalized'].includes(k)
@@ -108,7 +135,10 @@ export default function Reports() {
   return (
     <div>
       <h1 className="page-title">{titles[type] || 'Reports'}</h1>
-      <p className="page-sub">Manager-level stock comparison and exports {total ? `(${total})` : ''}</p>
+      <p className="page-sub">
+        Expected stock = opening audit + purchase − sale. Physical variance shows shortage/excess.
+        {total ? ` (${total})` : ''}
+      </p>
       {error && <div className="alert error">{error}</div>}
       {message && <div className="alert success">{message}</div>}
 
@@ -145,7 +175,7 @@ export default function Reports() {
 
       {type === 'export' ? (
         <div className="card" style={{ maxWidth: 480 }}>
-          <p>Download full SWIL vs Physical comparison as Excel.</p>
+          <p>Download full expected vs physical comparison as Excel.</p>
           <button className="btn" type="button" onClick={exportExcel}>
             Export Excel
           </button>

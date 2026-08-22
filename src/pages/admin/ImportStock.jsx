@@ -69,8 +69,9 @@ export default function ImportStock() {
       <h1 className="page-title">Import Stock</h1>
       <p className="page-sub">
         Upload SWIL export (.xls / .xlsx). File is parsed in the browser, then saved in fast batches.
-        Columns: NameToDisplay, Barcode (optional), Stock or Cl.Stock As On, PurchaseQty, SalesQty, MRP.
-        Rows without barcode are matched to existing products by name. Duplicate barcodes/names are summed.
+        Upload period movement data (.xls / .xlsx). PurchaseQty and SalesQty should be for the
+        period since the last completed audit — not all-time totals. Expected stock is calculated as
+        last physical audit + purchase − sale when you create the next audit.
       </p>
       {error && <div className="alert error">{error}</div>}
       {result && (
@@ -79,7 +80,8 @@ export default function ImportStock() {
             Imported <strong>{result.imported}</strong> unique products from {result.import.filename}
           </div>
           <p className="muted" style={{ marginTop: 0 }}>
-            Next step: create an audit from this SWIL snapshot, assign staff to racks, then start counting.
+            Next step: create a rolling audit — expected stock uses last physical count + purchase −
+            sale, then assign staff and start counting.
           </p>
           <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
             <Link className="btn" to="/admin/audits/create" state={{ importId: result.import.id }}>

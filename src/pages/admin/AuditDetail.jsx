@@ -97,6 +97,22 @@ export default function AuditDetail() {
           <p className="page-sub">
             {data.storeName} · <span className="badge ok">{data.status}</span>
           </p>
+          {data.previousAudit && (
+            <p className="muted" style={{ marginTop: '0.35rem' }}>
+              Rolling from previous audit: <strong>{data.previousAudit.name}</strong>
+              {data.previousAudit.completedAt
+                ? ` (${new Date(data.previousAudit.completedAt).toLocaleDateString()})`
+                : ''}
+            </p>
+          )}
+          {data.swilImport && (
+            <p className="muted" style={{ marginTop: '0.25rem' }}>
+              Period import: #{data.swilImport.id} · {data.swilImport.filename}
+            </p>
+          )}
+          <p className="muted" style={{ marginTop: '0.25rem' }}>
+            Expected stock = opening physical audit + purchases − sales
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'start' }}>
           {data.status === 'DRAFT' && (

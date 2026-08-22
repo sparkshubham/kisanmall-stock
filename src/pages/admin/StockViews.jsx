@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
+import ProductLedgerModal from '../../components/admin/ProductLedgerModal';
 import { downloadCsv, downloadXlsx, fetchAllPages, fileStampName } from '../../utils/exportSheet';
 
 const titles = {
@@ -34,6 +35,7 @@ export default function StockViews() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [ledger, setLedger] = useState(null);
 
   const load = useCallback(async () => {
     if (!auditId || !type) return;
@@ -79,10 +81,13 @@ export default function StockViews() {
       Product: r.product?.name || '',
       Barcode: r.product?.barcode || '',
       Unit: r.product?.unit || '',
-      MRP: Number(r.product?.mrp) || 0,
-      SWIL: Number(r.swilQty) || 0,
+      Opening: Number(r.openingQty) || 0,
+      Purchase: Number(r.purchaseQty) || 0,
+      Sale: Number(r.salesQty) || 0,
+      Expected: Number(r.expectedQty) || Number(r.swilQty) || 0,
       Physical: Number(r.physicalQty) || 0,
       Difference: Number(r.difference) || 0,
+      BookClosing: Number(r.closingQty) || 0,
       Locations:
         (r.locationCounts || [])
           .map((c) => `${c.location?.name || ''}: ${Number(c.quantity) || 0}`)
@@ -145,7 +150,9 @@ export default function StockViews() {
   return (
     <div>
       <h1 className="page-title">{titles[type] || 'Stock'}</h1>
-      <p className="page-sub">Admin view of SWIL vs physical results ({total} products)</p>
+      <p className="page-sub">
+        Expected = opening audit + purchase − sale. Compare with physical count ({total} products)
+      </p>
       {error && <div className="alert error">{error}</div>}
       {message && <div className="alert success">{message}</div>}
       <div className="list-toolbar">
@@ -196,9 +203,12 @@ export default function StockViews() {
             <tr>
               <th>Product</th>
               <th>Barcode</th>
-              <th>SWIL</th>
+              <th>Opening</th>
+              <th>Purchase</th>
+              <th>Sale</th>
+              <th>Expected</th>
               <th>Physical</th>
-              <th>Difference</th>
+              <th>Diff</th>
               <th>Locations</th>
               <th>Status</th>
               <th>Actions</th>
@@ -209,7 +219,10 @@ export default function StockViews() {
               <tr key={r.id}>
                 <td>{r.product.name}</td>
                 <td>{r.product.barcode}</td>
-                <td>{Number(r.swilQty)}</td>
+                <td>{Number(r.openingQty)}</td>
+                <td>{Number(r.purchaseQty)}</td>
+                <td>{Number(r.salesQty)}</td>
+                <td>{Number(r.expectedQty ?? r.swilQty)}</td>
                 <td>{Number(r.physicalQty)}</td>
                 <td>{Number(r.difference)}</td>
                 <td>
@@ -227,6 +240,15 @@ export default function StockViews() {
                   </span>
                 </td>
                 <td style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                  <button
+                    className="btn secondary sm"
+                    type="button"
+                    onClick={() =>
+                      setLedger({ productId: r.productId, productName: r.product.name })
+                    }
+                  >
+                    Ledger
+                  </button>
                   <button
                     className="btn secondary"
                     type="button"
@@ -248,7 +270,7 @@ export default function StockViews() {
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={8} className="empty">
+                <td colSpan={11} className="empty">
                   No rows
                 </td>
               </tr>
@@ -257,6 +279,14 @@ export default function StockViews() {
         </table>
       </div>
       <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+      {ledger && (
+        <ProductLedgerModal
+          auditId={auditId}
+          productId={ledger.productId}
+          productName={ledger.productName}
+          onClose={() => setLedger(null)}
+        />
+      )}
     </div>
   );
 }
