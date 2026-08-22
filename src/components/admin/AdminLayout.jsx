@@ -13,6 +13,7 @@ const sections = [
       { to: '/admin/audits/create', label: 'Create Audit' },
       { to: '/admin/audits/assign', label: 'Assign Staff' },
       { to: '/admin/audits/history', label: 'Audit History' },
+      { to: '/admin/audits/backups', label: 'Audit Backups' },
     ],
   },
   {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 
 export default function CreateAudit() {
@@ -102,6 +102,18 @@ export default function CreateAudit() {
               where period purchase/sale is missing.
             </p>
           )}
+          {preview.latestBackup ? (
+            <p style={{ margin: '0.5rem 0 0' }}>
+              Existing backup:{' '}
+              <Link to={`/admin/audits/backups/${preview.latestBackup.id}`}>
+                {preview.latestBackup.label}
+              </Link>
+            </p>
+          ) : preview.previousAudit ? (
+            <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+              A backup of the previous audit will be saved automatically when you create this audit.
+            </p>
+          ) : null}
           <p className="muted" style={{ margin: '0.5rem 0 0' }}>
             Selected import: {preview.importRowCount} products
           </p>

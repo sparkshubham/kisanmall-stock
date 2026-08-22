@@ -70,6 +70,7 @@ export default function AuditHistory() {
               <th>Status</th>
               <th>Products</th>
               <th>Completed</th>
+              <th>Backups</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -83,10 +84,14 @@ export default function AuditHistory() {
                 </td>
                 <td>{a._count?.products ?? '—'}</td>
                 <td>{a.completedAt ? new Date(a.completedAt).toLocaleString() : '—'}</td>
+                <td>{a._count?.snapshots ?? 0}</td>
                 <td>
                   <div className="row-actions">
                     <Link className="btn secondary sm" to={`/admin/audits/${a.id}`}>
                       View
+                    </Link>
+                    <Link className="btn secondary sm" to={`/admin/audits/backups?auditId=${a.id}`}>
+                      Backups
                     </Link>
                     <button className="btn danger sm" type="button" disabled={busyId === a.id} onClick={() => remove(a)}>
                       Delete
@@ -97,7 +102,7 @@ export default function AuditHistory() {
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={7} className="empty">
                   No completed audits yet
                 </td>
               </tr>

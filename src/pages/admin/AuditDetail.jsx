@@ -115,6 +115,15 @@ export default function AuditDetail() {
               Period import: #{data.swilImport.id} · {data.swilImport.filename}
             </p>
           )}
+          {data.latestBackup && (
+            <p className="muted" style={{ marginTop: '0.25rem' }}>
+              Latest backup:{' '}
+              <Link to={`/admin/audits/backups/${data.latestBackup.id}`}>
+                {data.latestBackup.label}
+              </Link>{' '}
+              ({new Date(data.latestBackup.snapshotAt).toLocaleString()})
+            </p>
+          )}
           <p className="muted" style={{ marginTop: '0.25rem' }}>
             Expected stock = opening physical audit + purchases − sales
           </p>
@@ -143,6 +152,28 @@ export default function AuditDetail() {
           <Link className="btn secondary" to="/admin/audits/assign" state={{ auditId: Number(id) }}>
             Assign Staff
           </Link>
+          <Link className="btn secondary" to={`/admin/audits/backups?auditId=${id}`}>
+            Backups
+          </Link>
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={!!busy}
+            onClick={async () => {
+              setBusy('backup');
+              setError('');
+              try {
+                await api.post(`/audits/${id}/backup`);
+                await load();
+              } catch (err) {
+                setError(err.response?.data?.message || 'Backup failed');
+              } finally {
+                setBusy('');
+              }
+            }}
+          >
+            Save Backup
+          </button>
           <Link className="btn secondary" to="/admin/reports/comparison">
             Comparison
           </Link>

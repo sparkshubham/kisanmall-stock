@@ -81,7 +81,7 @@ export default function ImportStock() {
           </div>
           <p className="muted" style={{ marginTop: 0 }}>
             Next step: create a rolling audit — expected stock uses last physical count + purchase −
-            sale, then assign staff and start counting.
+            sale. The completed previous audit is backed up automatically before the new audit starts.
           </p>
           <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
             <Link className="btn" to="/admin/audits/create" state={{ importId: result.import.id }}>

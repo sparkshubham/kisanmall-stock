@@ -8,6 +8,8 @@ import Audits from './pages/admin/Audits';
 import CreateAudit from './pages/admin/CreateAudit';
 import AssignStaff from './pages/admin/AssignStaff';
 import AuditHistory from './pages/admin/AuditHistory';
+import AuditBackups from './pages/admin/AuditBackups';
+import AuditBackupDetail from './pages/admin/AuditBackupDetail';
 import AuditDetail from './pages/admin/AuditDetail';
 import ImportStock from './pages/admin/ImportStock';
 import ImportHistory from './pages/admin/ImportHistory';
@@ -59,6 +61,8 @@ export default function App() {
         <Route path="audits/create" element={<CreateAudit />} />
         <Route path="audits/assign" element={<AssignStaff />} />
         <Route path="audits/history" element={<AuditHistory />} />
+        <Route path="audits/backups" element={<AuditBackups />} />
+        <Route path="audits/backups/:snapshotId" element={<AuditBackupDetail />} />
         <Route path="audits/:id" element={<AuditDetail />} />
         <Route path="swil/import" element={<ImportStock />} />
         <Route path="swil/history" element={<ImportHistory />} />
