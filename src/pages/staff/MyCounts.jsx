@@ -47,7 +47,7 @@ export default function MyCounts() {
         const { data } = await api.get('/counts/my-counts', {
           params: {
             page: pageNum,
-            pageSize: 5000,
+            pageSize: 500,
             q: search || undefined,
             ...(auditId ? { auditId } : {}),
           },

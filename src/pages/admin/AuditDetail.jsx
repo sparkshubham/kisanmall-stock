@@ -24,7 +24,12 @@ export default function AuditDetail() {
   useEffect(() => {
     load().catch((err) => setError(err.response?.data?.message || 'Failed to load audit'));
     const t = setInterval(() => {
-      load().catch(() => {});
+      api
+        .get(`/audits/${id}/progress`)
+        .then((res) => {
+          setData((prev) => (prev ? { ...prev, progress: res.data.progress } : prev));
+        })
+        .catch(() => {});
     }, 15000);
     return () => clearInterval(t);
   }, [id]);

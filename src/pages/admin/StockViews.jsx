@@ -101,7 +101,7 @@ export default function StockViews() {
     const status = apiStatus[type] || 'PHYSICAL';
     return fetchAllPages(async (pageNum) => {
       const { data } = await api.get(`/audits/${auditId}/stock/${status}`, {
-        params: { page: pageNum, pageSize: 5000, q: search || undefined },
+        params: { page: pageNum, pageSize: 500, q: search || undefined },
         timeout: 120000,
       });
       return data;
