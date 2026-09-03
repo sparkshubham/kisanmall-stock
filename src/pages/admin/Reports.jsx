@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
+import SortableTh from '../../components/common/SortableTh';
+import { nextSortState, sortRows } from '../../utils/tableControls';
 
 const titles = {
   comparison: 'Stock Comparison',
@@ -13,6 +15,20 @@ const titles = {
   export: 'Export Excel',
 };
 
+const SERVER_SORTABLE = new Set([
+  'product',
+  'barcode',
+  'opening',
+  'purchase',
+  'sales',
+  'expected',
+  'bookClosing',
+  'physical',
+  'difference',
+  'variance',
+  'status',
+]);
+
 export default function Reports() {
   const { type } = useParams();
   const [audits, setAudits] = useState([]);
@@ -20,9 +36,12 @@ export default function Reports() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('difference');
+  const [sortDir, setSortDir] = useState('asc');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -36,7 +55,20 @@ export default function Reports() {
 
   useEffect(() => {
     setPage(1);
-  }, [type, auditId, search]);
+  }, [type, auditId, search, pageSize, sortBy, sortDir]);
+
+  useEffect(() => {
+    if (type === 'movement') {
+      setSortBy('product');
+      setSortDir('asc');
+    } else if (type === 'location') {
+      setSortBy('location');
+      setSortDir('asc');
+    } else {
+      setSortBy('difference');
+      setSortDir('asc');
+    }
+  }, [type]);
 
   useEffect(() => {
     if (!auditId || type === 'export') return;
@@ -55,8 +87,17 @@ export default function Reports() {
                 ? `/reports/audit-summary/${auditId}`
                 : `/reports/comparison/${auditId}`;
 
+    const useServerSort = type !== 'location' && SERVER_SORTABLE.has(sortBy);
+
     api
-      .get(endpoint, { params: { page, pageSize: 25, q: search || undefined } })
+      .get(endpoint, {
+        params: {
+          page,
+          pageSize,
+          q: search || undefined,
+          ...(useServerSort ? { sortBy, sortDir } : {}),
+        },
+      })
       .then((res) => {
         if (type === 'audit') {
           const paged = res.data.comparison || { rows: [], total: 0, totalPages: 1 };
@@ -70,7 +111,7 @@ export default function Reports() {
         }
       })
       .catch((err) => setError(err.response?.data?.message || 'Failed to load report'));
-  }, [auditId, type, page, search]);
+  }, [auditId, type, page, pageSize, search, sortBy, sortDir]);
 
   const columns = useMemo(() => {
     if (!rows.length) return [];
@@ -92,7 +133,7 @@ export default function Reports() {
         'status',
       ];
     }
-    if (type === 'comparison') {
+    if (type === 'comparison' || type === 'shortage' || type === 'excess' || type === 'audit') {
       return [
         'product',
         'barcode',
@@ -111,6 +152,27 @@ export default function Reports() {
       (k) => !['productId', 'needsRecount', 'isVerified', 'isFinalized'].includes(k)
     );
   }, [rows, type]);
+
+  const displayRows = useMemo(() => {
+    if (type !== 'location' && SERVER_SORTABLE.has(sortBy)) return rows;
+    const getters = Object.fromEntries(
+      columns.map((c) => [
+        c,
+        (row) => {
+          const v = row[c];
+          if (c === 'countedAt' && v) return new Date(v);
+          return typeof v === 'number' ? v : v ?? '';
+        },
+      ])
+    );
+    return sortRows(rows, sortBy, sortDir, getters);
+  }, [rows, sortBy, sortDir, columns, type]);
+
+  function onSort(key) {
+    const next = nextSortState(sortBy, sortDir, key);
+    setSortBy(next.sortBy);
+    setSortDir(next.sortDir);
+  }
 
   async function exportExcel() {
     setError('');
@@ -187,12 +249,19 @@ export default function Reports() {
               <thead>
                 <tr>
                   {columns.map((c) => (
-                    <th key={c}>{c}</th>
+                    <SortableTh
+                      key={c}
+                      label={c}
+                      sortKey={c}
+                      sortBy={sortBy}
+                      sortDir={sortDir}
+                      onSort={onSort}
+                    />
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, idx) => (
+                {displayRows.map((r, idx) => (
                   <tr key={idx}>
                     {columns.map((c) => (
                       <td key={c}>
@@ -205,7 +274,7 @@ export default function Reports() {
                     ))}
                   </tr>
                 ))}
-                {!rows.length && (
+                {!displayRows.length && (
                   <tr>
                     <td colSpan={Math.max(columns.length, 1)} className="empty">
                       No data
@@ -215,7 +284,14 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+          />
         </>
       )}
     </div>

@@ -27,6 +27,9 @@ const sections = [
   {
     title: 'Stock Audit',
     items: [
+      { to: '/admin/stock/all', label: 'All Products' },
+      { to: '/admin/stock/counted', label: 'Counted' },
+      { to: '/admin/stock/pending', label: 'Pending' },
       { to: '/admin/stock/physical', label: 'Physical Stock' },
       { to: '/admin/stock/shortage', label: 'Shortage' },
       { to: '/admin/stock/excess', label: 'Excess' },
@@ -53,6 +56,13 @@ const sections = [
   {
     title: 'Users',
     items: [{ to: '/admin/users/staff', label: 'Staff' }],
+  },
+  {
+    title: 'Activity',
+    items: [
+      { to: '/admin/activity', label: 'Activity Log' },
+      { to: '/admin/activity/staff', label: 'Staff Last Feed' },
+    ],
   },
 ];
 

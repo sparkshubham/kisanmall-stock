@@ -15,6 +15,7 @@ export default function AuditBackups() {
   const auditFilter = searchParams.get('auditId') || '';
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [q, setQ] = useState('');
@@ -26,7 +27,7 @@ export default function AuditBackups() {
     const { data } = await api.get('/audits/backups', {
       params: {
         page,
-        pageSize: 25,
+        pageSize,
         q: search || undefined,
         ...(auditFilter ? { auditId: Number(auditFilter) } : {}),
       },
@@ -34,13 +35,13 @@ export default function AuditBackups() {
     setRows(data.rows || []);
     setTotal(data.total || 0);
     setTotalPages(data.totalPages || 1);
-  }, [page, search, auditFilter]);
+  }, [page, pageSize, search, auditFilter]);
 
   useEffect(() => {
     load().catch((err) => setError(err.response?.data?.message || 'Failed to load backups'));
   }, [load]);
 
-  useEffect(() => setPage(1), [search]);
+  useEffect(() => setPage(1), [search, pageSize, auditFilter]);
 
   async function exportBackup(id, name) {
     setError('');
@@ -147,7 +148,14 @@ export default function AuditBackups() {
           </tbody>
         </table>
       </div>
-      <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

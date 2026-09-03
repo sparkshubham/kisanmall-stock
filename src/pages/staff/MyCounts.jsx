@@ -8,6 +8,7 @@ export default function MyCounts() {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [q, setQ] = useState('');
@@ -21,7 +22,7 @@ export default function MyCounts() {
     const { data } = await api.get('/counts/my-counts', {
       params: {
         page,
-        pageSize: 25,
+        pageSize,
         q: search || undefined,
         ...(auditId ? { auditId } : {}),
       },
@@ -29,13 +30,13 @@ export default function MyCounts() {
     setRows(data.rows || []);
     setTotal(data.total || 0);
     setTotalPages(data.totalPages || 1);
-  }, [page, search]);
+  }, [page, pageSize, search]);
 
   useEffect(() => {
     load().catch((err) => setError(err.response?.data?.message || 'Failed to load counts'));
   }, [load]);
 
-  useEffect(() => setPage(1), [search]);
+  useEffect(() => setPage(1), [search, pageSize]);
 
   async function exportSheet(kind) {
     setError('');
@@ -124,7 +125,14 @@ export default function MyCounts() {
         ))}
         {!rows.length && <div className="empty">No counts yet. Start scanning.</div>}
       </div>
-      <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

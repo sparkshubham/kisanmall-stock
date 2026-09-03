@@ -6,6 +6,7 @@ import Pagination from '../../components/common/Pagination';
 export default function AuditHistory() {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [q, setQ] = useState('');
@@ -15,18 +16,18 @@ export default function AuditHistory() {
 
   const load = useCallback(async () => {
     const { data } = await api.get('/audits/history', {
-      params: { page, pageSize: 25, q: search || undefined },
+      params: { page, pageSize, q: search || undefined },
     });
     setRows(data.rows || []);
     setTotal(data.total || 0);
     setTotalPages(data.totalPages || 1);
-  }, [page, search]);
+  }, [page, pageSize, search]);
 
   useEffect(() => {
     load().catch((err) => setError(err.response?.data?.message || 'Failed to load history'));
   }, [load]);
 
-  useEffect(() => setPage(1), [search]);
+  useEffect(() => setPage(1), [search, pageSize]);
 
   async function remove(a) {
     if (!window.confirm(`Delete audit "${a.name}"?`)) return;
@@ -110,7 +111,14 @@ export default function AuditHistory() {
           </tbody>
         </table>
       </div>
-      <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

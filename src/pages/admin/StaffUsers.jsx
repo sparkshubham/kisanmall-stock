@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
+import SortableTh from '../../components/common/SortableTh';
+import { nextSortState } from '../../utils/tableControls';
 
 const emptyForm = { name: '', username: '', mobile: '', password: '', isActive: true };
 
 export default function StaffUsers() {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortDir, setSortDir] = useState('asc');
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
@@ -18,18 +23,24 @@ export default function StaffUsers() {
 
   const load = useCallback(async () => {
     const { data } = await api.get('/users', {
-      params: { page, pageSize: 25, role: 'STAFF', q: search || undefined },
+      params: { page, pageSize, role: 'STAFF', q: search || undefined, sortBy, sortDir },
     });
     setRows(data.rows || []);
     setTotal(data.total || 0);
     setTotalPages(data.totalPages || 1);
-  }, [page, search]);
+  }, [page, pageSize, search, sortBy, sortDir]);
 
   useEffect(() => {
     load().catch((err) => setError(err.response?.data?.message || 'Failed to load staff'));
   }, [load]);
 
-  useEffect(() => setPage(1), [search]);
+  useEffect(() => setPage(1), [search, pageSize, sortBy, sortDir]);
+
+  function onSort(key) {
+    const next = nextSortState(sortBy, sortDir, key);
+    setSortBy(next.sortBy);
+    setSortDir(next.sortDir);
+  }
 
   function startEdit(u) {
     setEditingId(u.id);
@@ -156,10 +167,10 @@ export default function StaffUsers() {
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Username</th>
-              <th>Mobile</th>
-              <th>Active</th>
+              <SortableTh label="Name" sortKey="name" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Username" sortKey="username" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Mobile" sortKey="mobile" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Active" sortKey="isActive" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <th>Actions</th>
             </tr>
           </thead>
@@ -192,7 +203,14 @@ export default function StaffUsers() {
           </tbody>
         </table>
       </div>
-      <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

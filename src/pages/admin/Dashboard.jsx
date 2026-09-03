@@ -2,6 +2,24 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
 
+function StatLink({ to, label, value, disabled }) {
+  if (disabled || !to) {
+    return (
+      <div className="stat">
+        <div className="label">{label}</div>
+        <div className="value">{value ?? 0}</div>
+      </div>
+    );
+  }
+  return (
+    <Link className="stat stat-link" to={to}>
+      <div className="label">{label}</div>
+      <div className="value">{value ?? 0}</div>
+      <div className="stat-hint">View list →</div>
+    </Link>
+  );
+}
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -17,6 +35,8 @@ export default function Dashboard() {
   if (!data) return <div className="muted">Loading dashboard…</div>;
 
   const p = data.progress || {};
+  const auditId = data.activeAudit?.id;
+  const q = auditId ? `?auditId=${auditId}` : '';
 
   return (
     <div>
@@ -25,52 +45,23 @@ export default function Dashboard() {
         {data.activeAudit
           ? `Active: ${data.activeAudit.name} · ${data.activeAudit.status}`
           : 'No active audit yet'}
+        {auditId ? ' — click a card to open that product list' : ''}
       </p>
 
       <div className="grid-stats">
-        <div className="stat">
-          <div className="label">Total Products</div>
-          <div className="value">{p.products ?? 0}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Counted</div>
-          <div className="value">{p.counted ?? 0}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Pending</div>
-          <div className="value">{p.pending ?? 0}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Recount Required</div>
-          <div className="value">{p.recountRequired ?? 0}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Verified</div>
-          <div className="value">{p.verified ?? 0}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Finalized</div>
-          <div className="value">{p.finalized ?? 0}</div>
-        </div>
+        <StatLink to={auditId ? `/admin/stock/all${q}` : null} label="Total Products" value={p.products} disabled={!auditId} />
+        <StatLink to={auditId ? `/admin/stock/counted${q}` : null} label="Counted" value={p.counted} disabled={!auditId} />
+        <StatLink to={auditId ? `/admin/stock/pending${q}` : null} label="Pending" value={p.pending} disabled={!auditId} />
+        <StatLink to={auditId ? `/admin/stock/recount${q}` : null} label="Recount Required" value={p.recountRequired} disabled={!auditId} />
+        <StatLink to={auditId ? `/admin/stock/verified${q}` : null} label="Verified" value={p.verified} disabled={!auditId} />
+        <StatLink to={auditId ? `/admin/stock/finalized${q}` : null} label="Finalized" value={p.finalized} disabled={!auditId} />
       </div>
 
       <div className="grid-stats">
-        <div className="stat">
-          <div className="label">Shortage</div>
-          <div className="value">{p.shortage ?? 0}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Excess</div>
-          <div className="value">{p.excess ?? 0}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Matched</div>
-          <div className="value">{p.matched ?? 0}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Staff</div>
-          <div className="value">{data.totals.staffCount}</div>
-        </div>
+        <StatLink to={auditId ? `/admin/stock/shortage${q}` : null} label="Shortage" value={p.shortage} disabled={!auditId} />
+        <StatLink to={auditId ? `/admin/stock/excess${q}` : null} label="Excess" value={p.excess} disabled={!auditId} />
+        <StatLink to={auditId ? `/admin/stock/matched${q}` : null} label="Matched" value={p.matched} disabled={!auditId} />
+        <StatLink to="/admin/activity/staff" label="Staff" value={data.totals?.staffCount} />
       </div>
 
       {p.assignments?.length > 0 && (
@@ -117,6 +108,11 @@ export default function Dashboard() {
         <Link className="btn secondary" to="/admin/reports/comparison">
           Stock Comparison
         </Link>
+        {auditId && (
+          <Link className="btn secondary" to={`/admin/stock/all?auditId=${auditId}`}>
+            All products
+          </Link>
+        )}
       </div>
     </div>
   );

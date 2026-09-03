@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
+import SortableTh from '../../components/common/SortableTh';
+import { nextSortState } from '../../utils/tableControls';
 
 const emptyForm = { name: '', barcode: '', mrp: '', salePrice: '', unit: 'PCS' };
 
 export default function ImportedProducts() {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortDir, setSortDir] = useState('asc');
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
@@ -18,18 +23,24 @@ export default function ImportedProducts() {
 
   const load = useCallback(async () => {
     const { data } = await api.get('/products', {
-      params: { page, pageSize: 25, q: search || undefined },
+      params: { page, pageSize, q: search || undefined, sortBy, sortDir },
     });
     setRows(data.rows || []);
     setTotal(data.total || 0);
     setTotalPages(data.totalPages || 1);
-  }, [page, search]);
+  }, [page, pageSize, search, sortBy, sortDir]);
 
   useEffect(() => {
     load().catch((err) => setError(err.response?.data?.message || 'Failed to load products'));
   }, [load]);
 
-  useEffect(() => setPage(1), [search]);
+  useEffect(() => setPage(1), [search, pageSize, sortBy, sortDir]);
+
+  function onSort(key) {
+    const next = nextSortState(sortBy, sortDir, key);
+    setSortBy(next.sortBy);
+    setSortDir(next.sortDir);
+  }
 
   function resetForm() {
     setEditingId(null);
@@ -159,15 +170,15 @@ export default function ImportedProducts() {
         <table>
           <thead>
             <tr>
-              <th>Product</th>
-              <th>Barcode</th>
-              <th>MRP</th>
-              <th>Sale</th>
+              <SortableTh label="Product" sortKey="name" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Barcode" sortKey="barcode" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="MRP" sortKey="mrp" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Sale" sortKey="salePrice" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <th>Discount</th>
-              <th>Purchase</th>
-              <th>Sales</th>
-              <th>Closing</th>
-              <th>Unit</th>
+              <SortableTh label="Purchase" sortKey="purchaseQty" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Sales" sortKey="salesQty" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Closing" sortKey="closingQty" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Unit" sortKey="unit" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <th>Actions</th>
             </tr>
           </thead>
@@ -205,7 +216,14 @@ export default function ImportedProducts() {
           </tbody>
         </table>
       </div>
-      <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

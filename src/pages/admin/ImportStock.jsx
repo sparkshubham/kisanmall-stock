@@ -34,6 +34,7 @@ export default function ImportStock() {
       for (let i = 0; i < parsed.items.length; i += CHUNK) {
         const batch = parsed.items.slice(i, i + CHUNK);
         const done = Math.min(i + CHUNK, parsed.items.length);
+        const isLast = done >= parsed.items.length;
         setProgress(`Saving ${done} / ${parsed.items.length} products…`);
         const { data } = await api.post(
           '/swil/import',
@@ -41,6 +42,7 @@ export default function ImportStock() {
             filename: file.name,
             importId,
             items: batch,
+            complete: isLast,
           },
           { timeout: 120000 }
         );

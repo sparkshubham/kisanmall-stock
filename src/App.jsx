@@ -18,6 +18,8 @@ import StockViews from './pages/admin/StockViews';
 import Locations from './pages/admin/Locations';
 import Reports from './pages/admin/Reports';
 import StaffUsers from './pages/admin/StaffUsers';
+import ActivityLog from './pages/admin/ActivityLog';
+import StaffActivity from './pages/admin/StaffActivity';
 import StaffHome from './pages/staff/StaffHome';
 import ScanBarcode from './pages/staff/ScanBarcode';
 import ProductCount from './pages/staff/ProductCount';
@@ -71,6 +73,8 @@ export default function App() {
         <Route path="locations" element={<Locations />} />
         <Route path="reports/:type" element={<Reports />} />
         <Route path="users/staff" element={<StaffUsers />} />
+        <Route path="activity" element={<ActivityLog />} />
+        <Route path="activity/staff" element={<StaffActivity />} />
       </Route>
 
       <Route

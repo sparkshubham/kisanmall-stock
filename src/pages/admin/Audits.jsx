@@ -1,24 +1,31 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import Pagination from '../../components/common/Pagination';
+import SortableTh from '../../components/common/SortableTh';
+import { nextSortState, sortRows } from '../../utils/tableControls';
 
 export default function Audits() {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortDir, setSortDir] = useState('desc');
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
-    const { data } = await api.get('/audits', { params: { page, pageSize: 25, q: search || undefined } });
+    const { data } = await api.get('/audits', {
+      params: { page, pageSize, q: search || undefined, sortBy, sortDir },
+    });
     setRows(data.rows || []);
     setTotal(data.total || 0);
     setTotalPages(data.totalPages || 1);
-  }, [page, search]);
+  }, [page, pageSize, search, sortBy, sortDir]);
 
   useEffect(() => {
     load().catch((err) => setError(err.response?.data?.message || 'Failed to load audits'));
@@ -26,7 +33,21 @@ export default function Audits() {
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, pageSize, sortBy, sortDir]);
+
+  function onSort(key) {
+    const next = nextSortState(sortBy, sortDir, key);
+    setSortBy(next.sortBy);
+    setSortDir(next.sortDir);
+  }
+
+  const displayRows = useMemo(() => {
+    if (['name', 'storeName', 'status', 'createdAt'].includes(sortBy)) return rows;
+    return sortRows(rows, sortBy, sortDir, {
+      products: (a) => a._count?.products ?? 0,
+      assignments: (a) => a._count?.assignments ?? 0,
+    });
+  }, [rows, sortBy, sortDir]);
 
   async function start(id) {
     setBusyId(id);
@@ -107,16 +128,16 @@ export default function Audits() {
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Store</th>
-              <th>Status</th>
-              <th>Products</th>
-              <th>Assignments</th>
+              <SortableTh label="Name" sortKey="name" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Store" sortKey="storeName" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Status" sortKey="status" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Products" sortKey="products" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <SortableTh label="Assignments" sortKey="assignments" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((a) => (
+            {displayRows.map((a) => (
               <tr key={a.id}>
                 <td>{a.name}</td>
                 <td>{a.storeName}</td>
@@ -156,7 +177,7 @@ export default function Audits() {
                 </td>
               </tr>
             ))}
-            {!rows.length && (
+            {!displayRows.length && (
               <tr>
                 <td colSpan={6} className="empty">
                   No audits yet
@@ -166,7 +187,14 @@ export default function Audits() {
           </tbody>
         </table>
       </div>
-      <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

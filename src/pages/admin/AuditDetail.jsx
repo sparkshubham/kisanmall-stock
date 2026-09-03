@@ -209,30 +209,36 @@ export default function AuditDetail() {
       )}
 
       <div className="grid-stats">
-        <div className="stat">
+        <Link className="stat stat-link" to={`/admin/stock/all?auditId=${id}`}>
           <div className="label">Products</div>
           <div className="value">{p.products ?? 0}</div>
-        </div>
-        <div className="stat">
+          <div className="stat-hint">View list →</div>
+        </Link>
+        <Link className="stat stat-link" to={`/admin/stock/counted?auditId=${id}`}>
           <div className="label">Counted</div>
           <div className="value">{p.counted ?? 0}</div>
-        </div>
-        <div className="stat">
+          <div className="stat-hint">View list →</div>
+        </Link>
+        <Link className="stat stat-link" to={`/admin/stock/pending?auditId=${id}`}>
           <div className="label">Pending</div>
           <div className="value">{p.pending ?? 0}</div>
-        </div>
-        <div className="stat">
+          <div className="stat-hint">View list →</div>
+        </Link>
+        <Link className="stat stat-link" to={`/admin/stock/shortage?auditId=${id}`}>
           <div className="label">Shortage</div>
           <div className="value">{p.shortage ?? 0}</div>
-        </div>
-        <div className="stat">
+          <div className="stat-hint">View list →</div>
+        </Link>
+        <Link className="stat stat-link" to={`/admin/stock/excess?auditId=${id}`}>
           <div className="label">Excess</div>
           <div className="value">{p.excess ?? 0}</div>
-        </div>
-        <div className="stat">
+          <div className="stat-hint">View list →</div>
+        </Link>
+        <Link className="stat stat-link" to={`/admin/stock/matched?auditId=${id}`}>
           <div className="label">Matched</div>
           <div className="value">{p.matched ?? 0}</div>
-        </div>
+          <div className="stat-hint">View list →</div>
+        </Link>
       </div>
 
       <h2 style={{ fontFamily: 'var(--display)', fontSize: '1.2rem' }}>Staff Assignments</h2>
